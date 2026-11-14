@@ -3449,7 +3449,24 @@ namespace MWMechanics
         mBrutalFastIndex = 0;
         resetBrutalFastContinuation();
         setAttackingOrSpell(false);
-        if (mUpperBodyState != UpperBodyState::None)
+        // The disabled weapon animation may be an equip or unequip that has not reached its
+        // attach/detach key yet; that key will not come, so finish the change here.
+        if (mUpperBodyState == UpperBodyState::Equipping)
+        {
+            mAnimation->showWeapons(true);
+            if (mAnimation->useShieldAnimations())
+            {
+                mAnimation->disable("shield");
+                mAnimation->showCarriedLeft(updateCarriedLeftVisible(mWeaponType));
+            }
+        }
+        if (mUpperBodyState == UpperBodyState::Unequipping)
+        {
+            mAnimation->showWeapons(false);
+            mUpperBodyState = UpperBodyState::None;
+            mWeaponType = ESM::Weapon::None;
+        }
+        else if (mUpperBodyState != UpperBodyState::None)
             mUpperBodyState = UpperBodyState::WeaponEquipped;
         mResetIdleOnAttackEnd = false;
 
