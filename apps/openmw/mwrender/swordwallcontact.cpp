@@ -574,7 +574,7 @@ namespace MWRender
         const auto& inventory = mPtr.getClass().getInventoryStore(mPtr);
         const auto right = inventory.getSlot(MWWorld::InventoryStore::Slot_CarriedRight);
         const bool shortBlade = right != inventory.end() && right->getType() == ESM::Weapon::sRecordId
-            && right->get<ESM::Weapon>()->mBase->mData.mType == ESM::Weapon::ShortBladeOneHand;
+            && right->get<ESM::Weapon>()->mBase->mData.mType == ESM::WeaponType::ShortBladeOneHand;
         const bool polearm = mViewmodelSet == BrutalViewmodel_Staff;
         const auto recoil = [&](bool fresh) {
             if (!weapon.materialWitness || weapon.recoilAge < 0.f || stats.isDead()

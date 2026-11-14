@@ -67,12 +67,12 @@ namespace MWWorld
         // A short blade fills the right hand. Only the player's Dark Messiah arms take a
         // second one, chosen while the right hand already holds a different short blade.
         if (slots.first.size() > 1 && object.getType() == ESM::Weapon::sRecordId
-            && object.get<ESM::Weapon>()->mBase->mData.mType == ESM::Weapon::ShortBladeOneHand)
+            && object.get<ESM::Weapon>()->mBase->mData.mType == ESM::WeaponType::ShortBladeOneHand)
         {
             const auto right = invStore.getSlot(InventoryStore::Slot_CarriedRight);
             const bool second = MWMechanics::brutalDualWield() && actor == MWMechanics::getPlayer() && MWMechanics::brutalDmFirstPerson()
                 && right != invStore.end() && right != it && right->getType() == ESM::Weapon::sRecordId
-                && right->get<ESM::Weapon>()->mBase->mData.mType == ESM::Weapon::ShortBladeOneHand;
+                && right->get<ESM::Weapon>()->mBase->mData.mType == ESM::WeaponType::ShortBladeOneHand;
             if (right == it || invStore.getSlot(InventoryStore::Slot_CarriedLeft) == it)
                 return;
             slots.first = { second ? InventoryStore::Slot_CarriedLeft : InventoryStore::Slot_CarriedRight };

@@ -19,7 +19,9 @@ namespace
         Flag_SuppressActivate = 1, // If set, activation will be suppressed and redirected to the OnActivate flag, which
                                    // can then be handled by a script.
         Flag_OnActivate = 2,
-        Flag_ActivationBuffered = 4
+        Flag_ActivationBuffered = 4,
+        // Local-script pause survives save/load, unlike activation interception.
+        Flag_LocalScriptDisabled = 8,
     };
 }
 
@@ -229,6 +231,22 @@ namespace MWWorld
         return mLocals;
     }
 
+    bool RefData::isLocalScriptEnabled() const
+    {
+        return !(mFlags & Flag_LocalScriptDisabled);
+    }
+
+    void RefData::setLocalScriptEnabled(bool enabled)
+    {
+        if (enabled == isLocalScriptEnabled())
+            return;
+        mChanged = true;
+        if (enabled)
+            mFlags &= ~Flag_LocalScriptDisabled;
+        else
+            mFlags |= Flag_LocalScriptDisabled;
+    }
+
     bool RefData::isEnabled() const
     {
         return mEnabled;
@@ -279,6 +297,11 @@ namespace MWWorld
         return mCustomData.get();
     }
 
+    bool RefData::hasCustomData() const
+    {
+        return mCustomData != nullptr;
+    }
+
     bool RefData::hasChanged() const
     {
         return mChanged || !mAnimationState.empty();
@@ -320,6 +343,11 @@ namespace MWWorld
     ESM::AnimationState& RefData::getAnimationState()
     {
         return mAnimationState;
+    }
+
+    void RefData::setChanged(bool changed)
+    {
+        mChanged = changed;
     }
 
 }

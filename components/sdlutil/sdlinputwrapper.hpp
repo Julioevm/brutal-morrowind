@@ -73,9 +73,10 @@ namespace SDLUtil
 
         bool mFirstMouseMove;
 
+        Sint32 mMouseX = 0;
+        Sint32 mMouseY = 0;
         Sint32 mMouseZ;
-        Sint32 mMouseX;
-        Sint32 mMouseY;
+        double mPendingWheelY;
 
         bool mWindowHasFocus;
         bool mMouseInWindow;

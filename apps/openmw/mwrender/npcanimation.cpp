@@ -30,7 +30,6 @@
 
 #include <osg/Depth>
 #include <osg/MatrixTransform>
-#include <osg/UserDataContainer>
 
 #include <osgUtil/CullVisitor>
 #include <osgUtil/RenderBin>
@@ -52,6 +51,8 @@
 #include <components/sceneutil/hemcoverage.hpp>
 #include <components/sceneutil/lightcommon.hpp>
 #include <components/sceneutil/positionattitudetransform.hpp>
+#include <components/sceneutil/textkeymap.hpp>
+#include <components/sceneutil/userdata.hpp>
 #include <components/sceneutil/visitor.hpp>
 #include <components/settings/values.hpp>
 
@@ -220,37 +221,44 @@ namespace
         { Log(Debug::Warning) << "Decapitation audit output failed: " << error.what(); }
     }
 
-    std::string getVampireHead(const ESM::RefId& race, bool female)
+    VFS::Path::Normalized getVampireHead(ESM::RefId race, bool female)
     {
-        static std::map<std::pair<ESM::RefId, int>, const ESM::BodyPart*> sVampireMapping;
+        static std::map<std::pair<ESM::RefId, bool>, const ESM::BodyPart*> sVampireMapping;
 
-        std::pair<ESM::RefId, int> thisCombination = std::make_pair(race, int(female));
+        const std::pair<ESM::RefId, bool> key(race, female);
+        const ESM::BodyPart* vampireHead = nullptr;
 
-        if (sVampireMapping.find(thisCombination) == sVampireMapping.end())
+        if (const auto it = sVampireMapping.find(key); it == sVampireMapping.end())
         {
             const MWWorld::ESMStore& store = *MWBase::Environment::get().getESMStore();
-            for (const ESM::BodyPart& bodypart : store.get<ESM::BodyPart>())
+
+            for (const ESM::BodyPart& bodyPart : store.get<ESM::BodyPart>())
             {
-                if (!bodypart.mData.mVampire)
+                if (!bodyPart.mData.mVampire)
                     continue;
-                if (bodypart.mData.mType != ESM::BodyPart::MT_Skin)
+                if (bodyPart.mData.mType != ESM::BodyPart::MT_Skin)
                     continue;
-                if (bodypart.mData.mPart != ESM::BodyPart::MP_Head)
+                if (bodyPart.mData.mPart != ESM::BodyPart::MP_Head)
                     continue;
-                if (female != (bodypart.mData.mFlags & ESM::BodyPart::BPF_Female))
+                if (female != (bodyPart.mData.mFlags & ESM::BodyPart::BPF_Female))
                     continue;
-                if (!(bodypart.mRace == race))
+                if (!(bodyPart.mRace == race))
                     continue;
-                sVampireMapping[thisCombination] = &bodypart;
+
+                vampireHead = &bodyPart;
             }
+
+            sVampireMapping.emplace_hint(it, key, vampireHead);
+        }
+        else
+        {
+            vampireHead = it->second;
         }
 
-        sVampireMapping.emplace(thisCombination, nullptr);
+        if (vampireHead == nullptr)
+            return {};
 
-        const ESM::BodyPart* bodyPart = sVampireMapping[thisCombination];
-        if (!bodyPart)
-            return std::string();
-        return Misc::ResourceHelpers::correctMeshPath(VFS::Path::Normalized(bodyPart->mModel)).value();
+        return Misc::ResourceHelpers::correctMeshPath(vampireHead->mModel.getNormalized());
     }
 
 }
@@ -423,18 +431,69 @@ namespace MWRender
     }
     const NpcAnimation::PartBoneMap NpcAnimation::sPartList = createPartListMap();
 
+    struct NpcAnimation::CallbackState
+    {
+        // Scene graph callbacks can survive the animation that installed them.
+        std::mutex mOwnerMutex;
+        NpcAnimation* mOwner = nullptr;
+        std::atomic_bool mBodyAwarenessHiddenForClinch{ false };
+    };
+
+    osg::ref_ptr<osg::NodeCallback> NpcAnimation::createSwordClinchPoseCallback()
+    {
+        class SwordClinchPoseCallback : public osg::NodeCallback
+        {
+        public:
+            explicit SwordClinchPoseCallback(std::shared_ptr<CallbackState> state)
+                : mState(std::move(state))
+            {
+            }
+
+            void operator()(osg::Node* node, osg::NodeVisitor* visitor) override
+            {
+                const bool update = visitor && visitor->getVisitorType() == osg::NodeVisitor::UPDATE_VISITOR;
+                if (update)
+                {
+                    const std::lock_guard lock(mState->mOwnerMutex);
+                    if (auto* owner = mState->mOwner)
+                        owner->restoreTransientPose();
+                }
+
+                // Both animated poses must be evaluated before fitting. Traversal can run
+                // garment callbacks that also lock the owner, so release the lock first.
+                traverse(node, visitor);
+
+                if (update)
+                {
+                    const std::lock_guard lock(mState->mOwnerMutex);
+                    if (auto* owner = mState->mOwner)
+                        owner->fitSwordClinchPose(*visitor);
+                }
+            }
+
+        private:
+            std::shared_ptr<CallbackState> mState;
+        };
+
+        return new SwordClinchPoseCallback(mCallbackState);
+    }
+
     struct NpcAnimation::GarmentCoverage
     {
         struct Callback : osg::NodeCallback
         {
-            osg::observer_ptr<NpcAnimation> owner;
-            explicit Callback(NpcAnimation* animation) : owner(animation) {}
+            std::shared_ptr<CallbackState> mState;
+            explicit Callback(std::shared_ptr<CallbackState> state)
+                : mState(std::move(state))
+            {
+            }
             void operator()(osg::Node* node, osg::NodeVisitor* visitor) override
             {
                 traverse(node, visitor);
-                osg::ref_ptr<NpcAnimation> animation;
-                if (visitor && visitor->getVisitorType() == osg::NodeVisitor::UPDATE_VISITOR
-                    && owner.lock(animation))
+                if (!visitor || visitor->getVisitorType() != osg::NodeVisitor::UPDATE_VISITOR)
+                    return;
+                const std::lock_guard lock(mState->mOwnerMutex);
+                if (auto* animation = mState->mOwner)
                     animation->evaluateRagdollGarmentCoverage(*visitor);
             }
         };
@@ -481,14 +540,18 @@ namespace MWRender
     {
         struct Callback : osg::NodeCallback
         {
-            osg::observer_ptr<NpcAnimation> owner;
-            explicit Callback(NpcAnimation* animation) : owner(animation) {}
+            std::shared_ptr<CallbackState> mState;
+            explicit Callback(std::shared_ptr<CallbackState> state)
+                : mState(std::move(state))
+            {
+            }
             void operator()(osg::Node* node, osg::NodeVisitor* visitor) override
             {
                 traverse(node, visitor);
-                osg::ref_ptr<NpcAnimation> animation;
-                if (visitor && visitor->getVisitorType() == osg::NodeVisitor::UPDATE_VISITOR
-                    && owner.lock(animation))
+                if (!visitor || visitor->getVisitorType() != osg::NodeVisitor::UPDATE_VISITOR)
+                    return;
+                const std::lock_guard lock(mState->mOwnerMutex);
+                if (auto* animation = mState->mOwner)
                 {
                     animation->evaluateRagdollGarmentCoverage(*visitor);
                     animation->dumpRagdollGarmentForAudit(*visitor);
@@ -507,8 +570,8 @@ namespace MWRender
         long long session;
         static constexpr std::array<double, 6> targets{ 0., 0.03, 0.2, 0.6, 1.2, 2.5 };
 
-        explicit GarmentAudit(std::filesystem::path path, NpcAnimation* owner)
-            : directory(std::move(path)), callback(new Callback(owner))
+        explicit GarmentAudit(std::filesystem::path path, const std::shared_ptr<CallbackState>& state)
+            : directory(std::move(path)), callback(new Callback(state))
         {
             static std::atomic<unsigned> sequence{ 0 };
             static const auto run = std::chrono::duration_cast<std::chrono::microseconds>(
@@ -602,7 +665,7 @@ namespace MWRender
         if (!mGarmentAudit)
         {
             if (!mObjectParts[ESM::PRT_Skirt]) return;
-            mGarmentAudit = std::make_unique<GarmentAudit>(directory, this);
+            mGarmentAudit = std::make_unique<GarmentAudit>(directory, mCallbackState);
         }
         auto& audit = *mGarmentAudit;
         if (std::isfinite(timepassed) && timepassed > 0.f)
@@ -874,7 +937,7 @@ namespace MWRender
                     if (!surface.parent->replaceChild(surface.source, surface.wrapper)) return;
                 }
             prepared->root = mObjectRoot;
-            prepared->callback = new GarmentCoverage::Callback(this);
+            prepared->callback = new GarmentCoverage::Callback(mCallbackState);
             mObjectRoot->addUpdateCallback(prepared->callback);
             mGarmentCoverage = std::move(prepared);
         }
@@ -975,6 +1038,10 @@ namespace MWRender
 
     NpcAnimation::~NpcAnimation()
     {
+        {
+            const std::lock_guard lock(mCallbackState->mOwnerMutex);
+            mCallbackState->mOwner = nullptr;
+        }
         clearCutBloodFlow();
         mBisection.reset();
         mLimbSevering.reset();
@@ -988,6 +1055,7 @@ namespace MWRender
         Resource::ResourceSystem* resourceSystem, bool disableSounds, ViewMode viewMode, float firstPersonFieldOfView,
         bool bodyAwareness)
         : ActorAnimation(ptr, std::move(parentNode), resourceSystem)
+        , mCallbackState(std::make_shared<CallbackState>())
         , mViewMode(viewMode)
         , mShowWeapons(false)
         , mShowCarriedLeft(true)
@@ -1012,6 +1080,7 @@ namespace MWRender
         std::fill(mSounds.begin(), mSounds.end(), nullptr);
 
         updateNpcBase();
+        mCallbackState->mOwner = this;
     }
 
     bool NpcAnimation::useFullBodyFirstPerson() const
@@ -1038,9 +1107,9 @@ namespace MWRender
 
         if (viewChange && Settings::game().mShieldSheathing)
         {
-            int weaptype = ESM::Weapon::None;
-            MWMechanics::getActiveWeapon(mPtr, &weaptype);
-            showCarriedLeft(updateCarriedLeftVisible(weaptype));
+            ESM::RefId weaponTypeId;
+            MWMechanics::getActiveWeapon(mPtr, &weaponTypeId);
+            showCarriedLeft(updateCarriedLeftVisible(weaponTypeId));
         }
     }
 
@@ -1096,18 +1165,22 @@ namespace MWRender
         osg::ref_ptr<osg::StateSet> mStateSet;
     };
 
-    class BodyAwarenessClinchCullCallback : public osg::NodeCallback
+    class NpcAnimation::BodyAwarenessClinchCullCallback : public osg::NodeCallback
     {
-        osg::observer_ptr<NpcAnimation> mOwner;
     public:
-        explicit BodyAwarenessClinchCullCallback(NpcAnimation* owner) : mOwner(owner) {}
+        explicit BodyAwarenessClinchCullCallback(std::shared_ptr<const CallbackState> state)
+            : mState(std::move(state))
+        {
+        }
+
         void operator()(osg::Node* node, osg::NodeVisitor* visitor) override
         {
-            osg::ref_ptr<NpcAnimation> owner;
-            if (mOwner.lock(owner) && owner->isBodyAwarenessHiddenForClinch())
-                return;
-            traverse(node, visitor);
+            if (!mState->mBodyAwarenessHiddenForClinch.load())
+                traverse(node, visitor);
         }
+
+    private:
+        std::shared_ptr<const CallbackState> mState;
     };
 
     /// Overrides Field of View to given value for rendering the subgraph.
@@ -1224,7 +1297,7 @@ namespace MWRender
         {
             const ESM::BodyPart* bp = store.get<ESM::BodyPart>().search(headName);
             if (bp)
-                mHeadModel = Misc::ResourceHelpers::correctMeshPath(VFS::Path::Normalized(bp->mModel));
+                mHeadModel = Misc::ResourceHelpers::correctMeshPath(bp->mModel.getNormalized());
             else
                 Log(Debug::Warning) << "Warning: Failed to load body part '" << headName << "'";
         }
@@ -1233,14 +1306,14 @@ namespace MWRender
         {
             const ESM::BodyPart* bp = store.get<ESM::BodyPart>().search(hairName);
             if (bp)
-                mHairModel = Misc::ResourceHelpers::correctMeshPath(VFS::Path::Normalized(bp->mModel));
+                mHairModel = Misc::ResourceHelpers::correctMeshPath(bp->mModel.getNormalized());
             else
                 Log(Debug::Warning) << "Warning: Failed to load body part '" << hairName << "'";
         }
 
-        const std::string vampireHead = getVampireHead(mNpc->mRace, isFemale);
-        if (!isWerewolf && isVampire && !vampireHead.empty())
-            mHeadModel = vampireHead;
+        if (!isWerewolf && isVampire)
+            if (VFS::Path::Normalized vampireHead = getVampireHead(mNpc->mRace, isFemale); !vampireHead.empty())
+                mHeadModel = std::move(vampireHead);
 
         bool is1stPerson = mViewMode == VM_FirstPerson && !useFullBodyFirstPerson();
         bool isBeast = (race->mData.mFlags & ESM::Race::Beast) != 0;
@@ -1268,7 +1341,7 @@ namespace MWRender
         bool isCustomModel = false;
         if (!is1stPerson && !isWerewolf && !mNpc->mModel.empty())
         {
-            VFS::Path::Normalized model = Misc::ResourceHelpers::correctMeshPath(VFS::Path::Normalized(mNpc->mModel));
+            const VFS::Path::Normalized model = Misc::ResourceHelpers::correctMeshPath(mNpc->mModel.getNormalized());
             isCustomModel = !isDefaultActorSkeleton(model);
             smodel = Misc::ResourceHelpers::correctActorModelPath(model, mResourceSystem->getVFS());
         }
@@ -1324,7 +1397,7 @@ namespace MWRender
 
     void NpcAnimation::resetBodyAwareness()
     {
-        mBodyAwarenessHiddenForClinch = false;
+        mCallbackState->mBodyAwarenessHiddenForClinch.store(false);
         mBodyAwarenessAnimation = nullptr;
         if (mBodyAwarenessRoot)
             mInsert->removeChild(mBodyAwarenessRoot);
@@ -1349,9 +1422,9 @@ namespace MWRender
         mBodyAwarenessRoot = new osg::MatrixTransform;
         mBodyAwarenessRoot->setName("First Person Body Awareness");
         mBodyAwarenessRoot->setNodeMask(Mask_Player);
-        mBodyAwarenessRoot->addCullCallback(new BodyAwarenessClinchCullCallback(this));
+        mBodyAwarenessRoot->addCullCallback(new BodyAwarenessClinchCullCallback(mCallbackState));
         mInsert->addChild(mBodyAwarenessRoot);
-        mBodyAwarenessAnimation = new NpcAnimation(mPtr, mBodyAwarenessRoot, mResourceSystem,
+        mBodyAwarenessAnimation = std::make_unique<NpcAnimation>(mPtr, mBodyAwarenessRoot, mResourceSystem,
             true, VM_Normal, mFirstPersonFieldOfView, true);
         mBodyAwarenessAnimation->enableHeadAnimation(false);
         mBodyAwarenessAnimation->setActive(2);
@@ -1540,15 +1613,23 @@ namespace MWRender
 
     void NpcAnimation::updateBodyAwarenessClinchVisibility()
     {
-        mBodyAwarenessHiddenForClinch = false;
         if (!mBodyAwarenessRoot || mBodyAwareness || mViewMode != VM_FirstPerson || mPtr.isEmpty())
+        {
+            mCallbackState->mBodyAwarenessHiddenForClinch.store(false);
             return;
+        }
         const auto& stats = mPtr.getClass().getCreatureStats(mPtr);
         // DM supplies an independent first-person arms/camera performance, not
         // a matching full-body versus clip. Keep this secondary body out of the
         // view until the normal pose transition has finished. Cull-only gating
         // preserves all visibility masks and continues updating the hidden pose.
-        mBodyAwarenessHiddenForClinch = stats.mBrutalClinchActive || stats.mBrutalClinchBlendOut > 0.f;
+        mCallbackState->mBodyAwarenessHiddenForClinch.store(
+            stats.mBrutalClinchActive || stats.mBrutalClinchBlendOut > 0.f);
+    }
+
+    bool NpcAnimation::isBodyAwarenessHiddenForClinch() const
+    {
+        return mCallbackState->mBodyAwarenessHiddenForClinch.load();
     }
 
     bool NpcAnimation::usePrimaryCrouchTransitions() const
@@ -1571,8 +1652,8 @@ namespace MWRender
 
         alignBodyAwareness(duration);
         NpcAnimation& body = *mBodyAwarenessAnimation;
-        if (body.mAlpha != mAlpha)
-            body.setAlpha(mAlpha);
+        if (body.mAlpha != mAlpha || body.mActorFade != mActorFade)
+            body.setAlpha(mActorFade, mAlpha);
         body.mLegsYawRadians = mLegsYawRadians;
         body.mUpperBodyYawRadians = mUpperBodyYawRadians;
         body.mBodyPitchRadians = mBodyPitchRadians;
@@ -1687,8 +1768,8 @@ namespace MWRender
             return BrutalViewmodel_Default;
         const MWWorld::InventoryStore& inv = mPtr.getClass().getInventoryStore(mPtr);
         const auto weapon = inv.getSlot(MWWorld::InventoryStore::Slot_CarriedRight);
-        const int type = weapon != inv.end() && weapon->getType() == ESM::Weapon::sRecordId
-            ? weapon->get<ESM::Weapon>()->mBase->mData.mType : ESM::Weapon::None;
+        const ESM::RefId type = weapon != inv.end() && weapon->getType() == ESM::Weapon::sRecordId
+            ? weapon->get<ESM::Weapon>()->mBase->mData.mType : ESM::RefId{};
         // OpenMW keeps a shield equipped while a two-handed weapon hides it. Its
         // inventory slot must not override the weapon's animation set.
         if (MWMechanics::brutalStaffWeapon(type))
@@ -1701,9 +1782,9 @@ namespace MWRender
         // blades. A single blade uses the sword palm/mount and animation set;
         // the shield case above already selects the sword-and-shield set.
         const auto left = inv.getSlot(MWWorld::InventoryStore::Slot_CarriedLeft);
-        const bool twoDaggers = MWMechanics::brutalDualWield() && type == ESM::Weapon::ShortBladeOneHand && left != inv.end()
+        const bool twoDaggers = MWMechanics::brutalDualWield() && type == ESM::WeaponType::ShortBladeOneHand && left != inv.end()
             && left->getType() == ESM::Weapon::sRecordId
-            && left->get<ESM::Weapon>()->mBase->mData.mType == ESM::Weapon::ShortBladeOneHand;
+            && left->get<ESM::Weapon>()->mBase->mData.mType == ESM::WeaponType::ShortBladeOneHand;
         return twoDaggers ? BrutalViewmodel_Dagger : BrutalViewmodel_Default;
     }
 
@@ -1848,7 +1929,7 @@ namespace MWRender
             {
                 const ESM::Light* light = part.get<ESM::Light>()->mBase;
                 addOrReplaceIndividualPart(ESM::PRT_Shield, MWWorld::InventoryStore::Slot_CarriedLeft, 1,
-                    Misc::ResourceHelpers::correctMeshPath(VFS::Path::Normalized(light->mModel)), false, nullptr, true);
+                    Misc::ResourceHelpers::correctMeshPath(light->mModel.getNormalized()), false, nullptr, true);
                 if (mObjectParts[ESM::PRT_Shield])
                     addExtraLight(mObjectParts[ESM::PRT_Shield]->getNode()->asGroup(), SceneUtil::LightCommon(*light));
             }
@@ -1879,7 +1960,7 @@ namespace MWRender
             {
                 if (const ESM::BodyPart* bodypart = parts[part])
                     addOrReplaceIndividualPart(static_cast<ESM::PartReferenceType>(part), -1, 1,
-                        Misc::ResourceHelpers::correctMeshPath(VFS::Path::Normalized(bodypart->mModel)));
+                        Misc::ResourceHelpers::correctMeshPath(bodypart->mModel.getNormalized()));
             }
         }
 
@@ -1952,7 +2033,7 @@ namespace MWRender
         if (enchantedGlow)
             mGlowUpdater = SceneUtil::addEnchantedGlow(attached, mResourceSystem, *glowColor);
 
-        return std::make_unique<PartHolder>(std::move(attached));
+        return std::make_unique<PartHolder>(std::move(attached), model);
     }
 
     osg::Vec3f NpcAnimation::runAnimation(float timepassed)
@@ -3346,8 +3427,8 @@ namespace MWRender
                 MWWorld::ConstContainerStoreIterator weapon = inv.getSlot(MWWorld::InventoryStore::Slot_CarriedRight);
                 if (weapon != inv.end() && weapon->getType() == ESM::Weapon::sRecordId)
                 {
-                    int weaponType = weapon->get<ESM::Weapon>()->mBase->mData.mType;
-                    const std::string& weaponBonename = MWMechanics::getWeaponType(weaponType)->mAttachBone;
+                    const ESM::RefId weaponTypeId = weapon->get<ESM::Weapon>()->mBase->mData.mType;
+                    const std::string& weaponBonename = MWMechanics::getWeaponType(weaponTypeId)->mAttachBone;
 
                     if (weaponBonename != bonename)
                     {
@@ -3397,27 +3478,18 @@ namespace MWRender
             {
                 src = mHeadAnimationTime;
 
-                if (node->getUserDataContainer())
+                if (const SceneUtil::TextKeyMap* keys = SceneUtil::findUserData<SceneUtil::TextKeyMap>(*node))
                 {
-                    for (unsigned int i = 0; i < node->getUserDataContainer()->getNumUserObjects(); ++i)
+                    for (const auto& key : *keys)
                     {
-                        osg::Object* obj = node->getUserDataContainer()->getUserObject(i);
-                        if (SceneUtil::TextKeyMapHolder* keys = dynamic_cast<SceneUtil::TextKeyMapHolder*>(obj))
-                        {
-                            for (const auto& key : keys->mTextKeys)
-                            {
-                                if (Misc::StringUtils::ciEqual(key.second, "talk: start"))
-                                    mHeadAnimationTime->setTalkStart(key.first);
-                                if (Misc::StringUtils::ciEqual(key.second, "talk: stop"))
-                                    mHeadAnimationTime->setTalkStop(key.first);
-                                if (Misc::StringUtils::ciEqual(key.second, "blink: start"))
-                                    mHeadAnimationTime->setBlinkStart(key.first);
-                                if (Misc::StringUtils::ciEqual(key.second, "blink: stop"))
-                                    mHeadAnimationTime->setBlinkStop(key.first);
-                            }
-
-                            break;
-                        }
+                        if (Misc::StringUtils::ciEqual(key.second, "talk: start"))
+                            mHeadAnimationTime->setTalkStart(key.first);
+                        if (Misc::StringUtils::ciEqual(key.second, "talk: stop"))
+                            mHeadAnimationTime->setTalkStop(key.first);
+                        if (Misc::StringUtils::ciEqual(key.second, "blink: start"))
+                            mHeadAnimationTime->setBlinkStart(key.first);
+                        if (Misc::StringUtils::ciEqual(key.second, "blink: stop"))
+                            mHeadAnimationTime->setBlinkStop(key.first);
                     }
                 }
                 SceneUtil::ForceControllerSourcesVisitor assignVisitor(std::move(src));
@@ -3482,8 +3554,7 @@ namespace MWRender
 
             if (bodypart)
                 addOrReplaceIndividualPart(static_cast<ESM::PartReferenceType>(part.mPart), group, priority,
-                    Misc::ResourceHelpers::correctMeshPath(VFS::Path::Normalized(bodypart->mModel)), enchantedGlow,
-                    glowColor);
+                    Misc::ResourceHelpers::correctMeshPath(bodypart->mModel.getNormalized()), enchantedGlow, glowColor);
             else
                 reserveIndividualPart((ESM::PartReferenceType)part.mPart, group, priority);
         }
@@ -3543,9 +3614,10 @@ namespace MWRender
 
                 // Crossbows start out with a bolt attached
                 if (weapon->getType() == ESM::Weapon::sRecordId
-                    && weapon->get<ESM::Weapon>()->mBase->mData.mType == ESM::Weapon::MarksmanCrossbow)
+                    && weapon->get<ESM::Weapon>()->mBase->mData.mType == ESM::WeaponType::MarksmanCrossbow)
                 {
-                    int ammotype = MWMechanics::getWeaponType(ESM::Weapon::MarksmanCrossbow)->mAmmoType;
+                    const ESM::RefId ammotype
+                        = MWMechanics::getWeaponType(ESM::WeaponType::MarksmanCrossbow)->mAmmoType;
                     MWWorld::ConstContainerStoreIterator ammo = inv.getSlot(MWWorld::InventoryStore::Slot_Ammunition);
                     if (ammo != inv.end() && ammo->get<ESM::Weapon>()->mBase->mData.mType == ammotype)
                         attachArrow();
@@ -3564,7 +3636,7 @@ namespace MWRender
         updateQuiver();
     }
 
-    bool NpcAnimation::updateCarriedLeftVisible(const int weaptype) const
+    bool NpcAnimation::updateCarriedLeftVisible(ESM::RefId weaptype) const
     {
         if (carriesLeftWeapon())
             return mPtr.getClass().getCreatureStats(mPtr).getDrawState() == MWMechanics::DrawState::Weapon;
@@ -3665,9 +3737,9 @@ namespace MWRender
         updateQuiver();
     }
 
-    void NpcAnimation::releaseArrow(float attackStrength)
+    void NpcAnimation::releaseArrow(float attackStrength, float attackWindUp)
     {
-        WeaponAnimation::releaseArrow(mPtr, attackStrength);
+        WeaponAnimation::releaseArrow(mPtr, attackStrength, attackWindUp);
         updateQuiver();
     }
 
@@ -3682,9 +3754,9 @@ namespace MWRender
         if (weapon == inv.end() || weapon->getType() != ESM::Weapon::sRecordId)
             return nullptr;
 
-        int type = weapon->get<ESM::Weapon>()->mBase->mData.mType;
-        int ammoType = MWMechanics::getWeaponType(type)->mAmmoType;
-        if (ammoType == ESM::Weapon::None)
+        const ESM::RefId type = weapon->get<ESM::Weapon>()->mBase->mData.mType;
+        const ESM::RefId ammoType = MWMechanics::getWeaponType(type)->mAmmoType;
+        if (ammoType.empty())
             return nullptr;
 
         // Try to find and attachment bone in actor's skeleton, otherwise fall back to the ArrowBone in weapon's mesh
@@ -3725,9 +3797,9 @@ namespace MWRender
     {
         if (Settings::game().mShieldSheathing)
         {
-            int weaptype = ESM::Weapon::None;
-            MWMechanics::getActiveWeapon(mPtr, &weaptype);
-            showCarriedLeft(updateCarriedLeftVisible(weaptype));
+            ESM::RefId weaponTypeId;
+            MWMechanics::getActiveWeapon(mPtr, &weaponTypeId);
+            showCarriedLeft(updateCarriedLeftVisible(weaponTypeId));
         }
 
         updateParts();

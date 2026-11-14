@@ -29,12 +29,12 @@ namespace MWRender
     {
     public:
         AnimBlendController(const osg::ref_ptr<SceneUtil::KeyframeController>& keyframeTrack,
-            const AnimBlendStateData& animState, const osg::ref_ptr<const SceneUtil::AnimBlendRules>& blendRules);
+            const AnimBlendStateData& animState, const std::shared_ptr<const SceneUtil::AnimBlendRules>& blendRules);
 
         AnimBlendController();
 
         void setKeyframeTrack(const osg::ref_ptr<SceneUtil::KeyframeController>& kft,
-            const AnimBlendStateData& animState, const osg::ref_ptr<const SceneUtil::AnimBlendRules>& blendRules);
+            const AnimBlendStateData& animState, const std::shared_ptr<const SceneUtil::AnimBlendRules>& blendRules);
 
         bool getBlendTrigger() const { return mBlendTrigger; }
 
@@ -50,7 +50,7 @@ namespace MWRender
         bool mBlendAnimationTime = false;
 
         AnimBlendStateData mAnimState;
-        osg::ref_ptr<const SceneUtil::AnimBlendRules> mAnimBlendRules;
+        std::shared_ptr<const SceneUtil::AnimBlendRules> mAnimBlendRules;
         osg::ref_ptr<SceneUtil::KeyframeController> mKeyframeTrack;
 
         std::unordered_map<osg::Node*, osg::Matrixf> mBlendBoneTransforms;
@@ -63,7 +63,7 @@ namespace MWRender
     {
     public:
         NifAnimBlendController(const osg::ref_ptr<SceneUtil::KeyframeController>& keyframeTrack,
-            const AnimBlendStateData& animState, const osg::ref_ptr<const SceneUtil::AnimBlendRules>& blendRules);
+            const AnimBlendStateData& animState, const std::shared_ptr<const SceneUtil::AnimBlendRules>& blendRules);
 
         NifAnimBlendController() {}
 
@@ -89,7 +89,7 @@ namespace MWRender
     {
     public:
         BoneAnimBlendController(const osg::ref_ptr<SceneUtil::KeyframeController>& keyframeTrack,
-            const AnimBlendStateData& animState, const osg::ref_ptr<const SceneUtil::AnimBlendRules>& blendRules);
+            const AnimBlendStateData& animState, const std::shared_ptr<const SceneUtil::AnimBlendRules>& blendRules);
 
         BoneAnimBlendController() {}
 

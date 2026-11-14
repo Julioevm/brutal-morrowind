@@ -2,7 +2,7 @@
 
 Brutal Morrowind is Morrowind with the melee combat of Dark Messiah of Might and Magic: kicks,
 directional and charged attacks, parries, sliding, adrenaline finishers, ragdolls and dismemberment,
-with Dark Messiah's own first-person animations. It is a fork of [OpenMW](https://openmw.org) 0.51.0.
+with Dark Messiah's own first-person animations. It is a fork of [OpenMW](https://openmw.org) 0.52.0 release branch.
 
 No game files are included. Brutal Morrowind uses the games you own.
 

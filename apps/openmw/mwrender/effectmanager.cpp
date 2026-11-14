@@ -33,6 +33,19 @@
 
 namespace MWRender
 {
+    namespace
+    {
+        osg::ref_ptr<osg::Material> createAlphaTrackingUnlitMaterial()
+        {
+            osg::ref_ptr<osg::Material> material = new osg::Material;
+            material->setDiffuse(osg::Material::FRONT_AND_BACK, osg::Vec4f(0.f, 0.f, 0.f, 1.f));
+            material->setAmbient(osg::Material::FRONT_AND_BACK, osg::Vec4f(0.f, 0.f, 0.f, 1.f));
+            material->setEmission(osg::Material::FRONT_AND_BACK, osg::Vec4f(1.f, 1.f, 1.f, 1.f));
+            material->setSpecular(osg::Material::FRONT_AND_BACK, osg::Vec4f(0.f, 0.f, 0.f, 0.f));
+            material->setColorMode(osg::Material::DIFFUSE);
+            return material;
+        }
+    }
 
     EffectManager::EffectManager(osg::ref_ptr<osg::Group> parent, Resource::ResourceSystem* resourceSystem)
         : mParentNode(std::move(parent))
@@ -196,8 +209,7 @@ namespace MWRender
         if (useAmbientLight)
         {
             // Morrowind has a white ambient light attached to the root VFX node of the scenegraph
-            node->getOrCreateStateSet()->setAttributeAndModes(
-                getVFXLightModelInstance(), osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE);
+            SceneUtil::configureSunAmbientOverride(osg::Vec4f(1, 1, 1, 1), node->getOrCreateStateSet());
         }
 
         mResourceSystem->getSceneManager()->setUpNormalsRTForStateSet(node->getOrCreateStateSet(), false);

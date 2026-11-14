@@ -194,8 +194,8 @@ namespace MWMechanics::BrutalFootsteps
             const std::uint16_t texture = data->mTextures[y * ESM::Land::LAND_TEXTURE_SIZE + x];
             if (texture == 0)
                 return {};
-            const std::string* name = store.get<ESM::LandTexture>().search(texture - 1, land->getPlugin());
-            return name ? Misc::StringUtils::lowerCase(*name) : std::string();
+            const ESM::Path* name = store.get<ESM::LandTexture>().search(texture - 1, land->getPlugin());
+            return name ? Misc::StringUtils::lowerCase(name->getOriginal()) : std::string();
         }
 
         std::string hitTexture(const MWWorld::Ptr& object, const osg::Vec3f& position)

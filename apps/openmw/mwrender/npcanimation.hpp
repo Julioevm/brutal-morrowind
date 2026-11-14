@@ -11,6 +11,8 @@
 
 #include <array>
 #include <cstdint>
+#include <memory>
+
 #include <osg/observer_ptr>
 
 namespace ESM
@@ -81,6 +83,8 @@ namespace MWRender
 
         // Opt-in private geometry audit. The callback samples after the whole
         // object update traversal, after the rendered ragdoll bones are assigned.
+        struct CallbackState;
+        std::shared_ptr<CallbackState> mCallbackState;
         struct GarmentAudit;
         std::unique_ptr<GarmentAudit> mGarmentAudit;
         void updateRagdollGarmentAudit(float timepassed);
@@ -204,10 +208,10 @@ namespace MWRender
         // A secondary normal skeleton supplies only the world-space torso and legs.
         // It has no inventory/text-key listener and cannot drive combat or actor motion.
         bool mBodyAwareness = false;
-        bool mBodyAwarenessHiddenForClinch = false;
+        class BodyAwarenessClinchCullCallback;
         void updateBodyAwarenessClinchVisibility();
         osg::ref_ptr<osg::MatrixTransform> mBodyAwarenessRoot;
-        osg::ref_ptr<NpcAnimation> mBodyAwarenessAnimation;
+        std::unique_ptr<NpcAnimation> mBodyAwarenessAnimation;
         osg::Vec3f mBodyGroundNormal{ 0.f, 0.f, 1.f };
         osg::Vec3f mBodyGroundUp{ 0.f, 0.f, 1.f };
         osg::Vec3f mBodyGroundAnchor;
@@ -304,6 +308,7 @@ namespace MWRender
         SwordClinchGeometry mSwordClinchGeometry;
         void restoreTransientPose() override;
         void fitSwordClinchPose(osg::NodeVisitor& visitor);
+        osg::ref_ptr<osg::NodeCallback> createSwordClinchPoseCallback();
         bool canFitSwordClinchPose(NpcAnimation& opponent);
         const SwordClinchGeometry& getSwordClinchGeometryForAudit() const { return mSwordClinchGeometry; }
         void configureSwordWallSweep(std::uint64_t swing, std::string_view group, std::string_view key);
@@ -356,7 +361,7 @@ namespace MWRender
         std::map<std::string, osg::Vec3f> getFootGeometryForAudit(const osg::Vec3f& normal) const;
         unsigned int getBodyAwarenessVisibilityMask() const
         { return mBodyAwarenessRoot ? mBodyAwarenessRoot->getNodeMask() : 0u; }
-        bool isBodyAwarenessHiddenForClinch() const { return mBodyAwarenessHiddenForClinch; }
+        bool isBodyAwarenessHiddenForClinch() const;
         void setFirstPersonGeometryVisibleForAudit(bool visible);
 
         /// 1: the first person meshes follow the camera's rotation completely
@@ -374,13 +379,13 @@ namespace MWRender
         bool getWeaponsShown() const override { return mShowWeapons; }
         void showWeapons(bool showWeapon) override;
 
-        bool updateCarriedLeftVisible(const int weaptype) const override;
+        bool updateCarriedLeftVisible(ESM::RefId weaptype) const override;
         bool getCarriedLeftShown() const override { return mShowCarriedLeft; }
         void showCarriedLeft(bool show) override;
 
         void attachArrow() override;
         void detachArrow() override;
-        void releaseArrow(float attackStrength) override;
+        void releaseArrow(float attackStrength, float attackWindUp) override;
 
         osg::Group* getArrowBone() override;
         osg::Node* getWeaponNode() override;
@@ -398,6 +403,8 @@ namespace MWRender
 
         /// Get the inventory slot that the given node path leads into, or -1 if not found.
         int getSlot(const osg::NodePath& path) const;
+
+        const PartHolder* getPart(ESM::PartReferenceType type) const { return mObjectParts[type].get(); }
 
         void setVampire(bool vampire) override;
 

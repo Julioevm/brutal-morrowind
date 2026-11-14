@@ -118,14 +118,14 @@ namespace MWWorld
         throw std::runtime_error("class cannot hit");
     }
 
-    void Class::hit(const Ptr& ptr, float attackStrength, int type, const Ptr& victim, const osg::Vec3f& hitPosition,
-        bool success, int contactPart) const
+    void Class::hit(const Ptr& ptr, float attackStrength, float attackWindUp, int type, const Ptr& victim,
+        const osg::Vec3f& hitPosition, bool success, int contactPart) const
     {
         throw std::runtime_error("class cannot hit");
     }
 
     void Class::onHit(const Ptr& ptr, const std::map<std::string, float>& damages, ESM::RefId object,
-        const Ptr& attacker, bool successful, const MWMechanics::DamageSourceType sourceType) const
+        const Ptr& attacker, bool successful, MWMechanics::DamageSourceType sourceType, bool) const
     {
         throw std::runtime_error("class cannot be hit");
     }
@@ -281,7 +281,7 @@ namespace MWWorld
         throw std::runtime_error("class does not support soundgen look up");
     }
 
-    const std::string& Class::getInventoryIcon(const MWWorld::ConstPtr& ptr) const
+    VFS::Path::NormalizedView Class::getInventoryIcon(const MWWorld::ConstPtr& ptr) const
     {
         throw std::runtime_error("class does not have any inventory icon");
     }
@@ -311,16 +311,16 @@ namespace MWWorld
 
     void Class::adjustScale(const MWWorld::ConstPtr& ptr, osg::Vec3f& scale, bool rendering) const {}
 
-    std::string_view Class::getModel(const MWWorld::ConstPtr& ptr) const
+    VFS::Path::NormalizedView Class::getModel(const MWWorld::ConstPtr& ptr) const
     {
         return {};
     }
 
     VFS::Path::Normalized Class::getCorrectedModel(const MWWorld::ConstPtr& ptr) const
     {
-        std::string_view model = getModel(ptr);
+        const VFS::Path::NormalizedView model = getModel(ptr);
         if (!model.empty())
-            return Misc::ResourceHelpers::correctMeshPath(VFS::Path::Normalized(model));
+            return Misc::ResourceHelpers::correctMeshPath(model);
         return {};
     }
 
@@ -329,9 +329,9 @@ namespace MWWorld
         return false;
     }
 
-    void Class::getModelsToPreload(const ConstPtr& ptr, std::vector<std::string_view>& models) const
+    void Class::getModelsToPreload(const ConstPtr& ptr, std::vector<VFS::Path::NormalizedView>& models) const
     {
-        std::string_view model = getModel(ptr);
+        const VFS::Path::NormalizedView model = getModel(ptr);
         if (!model.empty())
             models.push_back(model);
     }
@@ -354,23 +354,34 @@ namespace MWWorld
         if (!MWBase::Environment::get().getWindowManager()->isAllowed(MWGui::GW_Inventory))
             return std::make_unique<NullAction>();
 
-        if (actor.getClass().isNpc() && actor.getClass().getNpcStats(actor).isWerewolf())
-        {
-            const MWWorld::ESMStore& store = *MWBase::Environment::get().getESMStore();
-            auto& prng = MWBase::Environment::get().getWorld()->getPrng();
-            const ESM::Sound* sound = store.get<ESM::Sound>().searchRandom("WolfItem", prng);
+        std::unique_ptr<Action> werewolfAction = getWerewolfRefusalAction(actor);
+        if (werewolfAction)
+            return werewolfAction;
 
-            std::unique_ptr<MWWorld::Action> action = std::make_unique<MWWorld::FailedAction>("#{sWerewolfRefusal}");
+        std::unique_ptr<Action> action = std::make_unique<ActionTake>(ptr);
+        action->setSound(getUpSoundId(ptr));
+
+        return action;
+    }
+
+    std::unique_ptr<Action> Class::getWerewolfRefusalAction(const Ptr& actor) const
+    {
+        std::string_view soundId = getWerewolfRefusalSoundId();
+
+        if (!soundId.empty() && actor.getClass().isNpc() && actor.getClass().getNpcStats(actor).isWerewolf())
+        {
+            const ESMStore& store = *MWBase::Environment::get().getESMStore();
+            auto& prng = MWBase::Environment::get().getWorld()->getPrng();
+            const ESM::Sound* sound = store.get<ESM::Sound>().searchRandom(soundId, prng);
+
+            std::unique_ptr<Action> action = std::make_unique<FailedAction>("#{sWerewolfRefusal}");
             if (sound)
                 action->setSound(sound->mId);
 
             return action;
         }
 
-        std::unique_ptr<MWWorld::Action> action = std::make_unique<ActionTake>(ptr);
-        action->setSound(getUpSoundId(ptr));
-
-        return action;
+        return {};
     }
 
     MWWorld::Ptr Class::copyToCellImpl(const ConstPtr& ptr, CellStore& cell) const

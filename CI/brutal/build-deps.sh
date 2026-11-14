@@ -9,9 +9,9 @@ JOBS="${JOBS:-$(nproc)}"
 mkdir -p "$WORK" "$PREFIX"
 cd "$WORK"
 
-fetch() { # url file sha256
+fetch() { # url file checksum [checksum tool]
     curl -sSLf -o "$2" "$1"
-    echo "$3  $2" | sha256sum -c --quiet
+    echo "$3  $2" | "${4:-sha256sum}" -c --quiet
 }
 cmake_build() { # source-dir extra-args...
     local src="$1"; shift
@@ -51,9 +51,9 @@ cmake_build mygui-MyGUI3.4.3 -DMYGUI_RENDERSYSTEM=1 -DMYGUI_BUILD_DEMOS=OFF -DMY
 
 # OpenSceneGraph: the OpenMW fork at the commit pinned in extern/CMakeLists.txt,
 # with the plugins the engine loads.
-OSG_COMMIT=01cc2b585c8456a4ff843066b7e1a8715558289f
+OSG_COMMIT=9b384d5439977784e5cd250ff8ff7966928ddd27
 fetch "https://github.com/OpenMW/osg/archive/$OSG_COMMIT.zip" \
-    osg.zip 3fe02f29906cf371ffc9e49d979c1b517669960f67a57269238bc40d58b651b7
+    osg.zip 3d3db3b735658bfe743b82aa2fc1892bc5eb6a7da324ee55f7d0f980472fdcc76c80c4afd2e3361e84e933d088baf12a14c9d48fb21708f42f4d11ba2a82a171 sha512sum
 unzip -q osg.zip
 osg_plugins=()
 for plugin in bmp dae dds freetype glsl jpeg osg png tga; do

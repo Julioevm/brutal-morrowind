@@ -36,12 +36,12 @@ namespace MWMechanics
             const auto right = inventory.getSlot(MWWorld::InventoryStore::Slot_CarriedRight);
             if (right == inventory.end() || right->getType() != ESM::Weapon::sRecordId)
                 return {};
-            const int type = right->get<ESM::Weapon>()->mBase->mData.mType;
+            const ESM::RefId type = right->get<ESM::Weapon>()->mBase->mData.mType;
             // The player's dagger and staff sets carry their own contest clips; an NPC opponent
             // still needs the sword it has clips for.
-            const bool playerSet = player && (type == ESM::Weapon::SpearTwoWide || type == ESM::Weapon::BluntTwoWide);
-            if (!playerSet && type != ESM::Weapon::ShortBladeOneHand && type != ESM::Weapon::LongBladeOneHand
-                && (player || type != ESM::Weapon::LongBladeTwoHand))
+            const bool playerSet = player && (type == ESM::WeaponType::SpearTwoWide || type == ESM::WeaponType::BluntTwoWide);
+            if (!playerSet && type != ESM::WeaponType::ShortBladeOneHand && type != ESM::WeaponType::LongBladeOneHand
+                && (player || type != ESM::WeaponType::LongBladeTwoHand))
                 return {};
             if (player)
             {

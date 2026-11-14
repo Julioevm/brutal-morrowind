@@ -3,7 +3,6 @@
 #include <cctype>
 
 #include <algorithm>
-#include <iomanip>
 #include <limits>
 #include <set>
 #include <array>
@@ -12,9 +11,11 @@
 #include <osg/FrontFace>
 #include <osg/LightModel>
 #include <osg/Material>
+#include <osg/Matrix>
 #include <osg/MatrixTransform>
 #include <osg/Switch>
 
+#include <osg/Vec4f>
 #include <osgParticle/ParticleProcessor>
 #include <osgParticle/ParticleSystem>
 
@@ -52,6 +53,7 @@
 #include <components/sceneutil/riggeometry.hpp>
 #include <components/sceneutil/skeleton.hpp>
 #include <components/sceneutil/statesetupdater.hpp>
+#include <components/sceneutil/templateref.hpp>
 #include <components/sceneutil/util.hpp>
 #include <components/sceneutil/visitor.hpp>
 
@@ -393,15 +395,14 @@ namespace
             && (group == "brutal_slide" || (group == "weapononehand" && slideAttack));
     }
 
-    osg::ref_ptr<const SceneUtil::AnimBlendRules> slideArmBlendRules(
-        std::string_view group, std::string_view startKey)
+    std::shared_ptr<const SceneUtil::AnimBlendRules> slideArmBlendRules(std::string_view group, std::string_view startKey)
     {
         // Windup/release/follow disable and replay the same weapon group. The
         // intervening reset can briefly select slide without rendering it; do
         // not turn that bookkeeping transition into another strike-time blend.
         if (group == "weapononehand" && startKey != "slash start")
             return nullptr;
-        static const osg::ref_ptr<const SceneUtil::AnimBlendRules> rules = new SceneUtil::AnimBlendRules(
+        static const auto rules = std::make_shared<const SceneUtil::AnimBlendRules>(
             std::vector<SceneUtil::AnimBlendRules::BlendRule>{
                 { "brutal_slide", "*", "weapononehand", "slash *", .08f, "sineOut" },
                 { "weapononehand", "*", "brutal_slide", "*", .08f, "sineOut" },
@@ -411,9 +412,9 @@ namespace
 
     // The dagger and staff contests enter with the Source sequence fade (.2 s, linear): their guard
     // and contest poses are much further apart than the sword's, and a shorter ease shows as a jump.
-    osg::ref_ptr<const SceneUtil::AnimBlendRules> familyClinchArmBlendRules()
+    std::shared_ptr<const SceneUtil::AnimBlendRules> familyClinchArmBlendRules()
     {
-        static const osg::ref_ptr<const SceneUtil::AnimBlendRules> rules = new SceneUtil::AnimBlendRules(
+        static const auto rules = std::make_shared<const SceneUtil::AnimBlendRules>(
             std::vector<SceneUtil::AnimBlendRules::BlendRule>{
                 { "*", "*", "brutal_clinch*", "*", .2f, "linear" },
                 { "brutal_clinch*", "*", "*", "*", .2f, "linear" },
@@ -421,11 +422,11 @@ namespace
         return rules;
     }
 
-    osg::ref_ptr<const SceneUtil::AnimBlendRules> clinchArmBlendRules()
+    std::shared_ptr<const SceneUtil::AnimBlendRules> clinchArmBlendRules()
     {
         // Only the paired sword action opts the private first-person arms into
         // interpolation. Camera/root and the normal weapon timings stay authored.
-        static const osg::ref_ptr<const SceneUtil::AnimBlendRules> rules = new SceneUtil::AnimBlendRules(
+        static const auto rules = std::make_shared<const SceneUtil::AnimBlendRules>(
             std::vector<SceneUtil::AnimBlendRules::BlendRule>{
                 { "*", "*", "brutal_clinch*", "*", .12f, "sineOut" },
                 { "brutal_clinch*", "*", "*", "*", .12f, "sineOut" },
@@ -527,7 +528,7 @@ namespace
             geometry->setUserDataContainer(found->geometry->getUserDataContainer()
                 ? static_cast<osg::UserDataContainer*>(found->geometry->getUserDataContainer()->clone(osg::CopyOp::SHALLOW_COPY))
                 : new osg::DefaultUserDataContainer);
-            geometry->getOrCreateUserDataContainer()->addUserObject(new Resource::TemplateRef(found->geometry));
+            SceneUtil::addTemplateRef(*geometry, found->geometry);
             osg::ref_ptr<osg::VertexBufferObject> vbo = new osg::VertexBufferObject;
             vbo->setUsage(GL_STATIC_DRAW_ARB);
             geometry->setSupportsDisplayList(false);
@@ -644,27 +645,17 @@ namespace
     class DayNightCallback : public SceneUtil::NodeCallback<DayNightCallback, osg::Switch*>
     {
     public:
-        DayNightCallback()
-            : mCurrentState(0)
-        {
-        }
-
         void operator()(osg::Switch* node, osg::NodeVisitor* nv)
         {
             unsigned int state = MWBase::Environment::get().getWorld()->getNightDayMode();
             const unsigned int newState = node->getNumChildren() > state ? state : 0;
 
-            if (newState != mCurrentState)
-            {
-                mCurrentState = newState;
-                node->setSingleChildOn(mCurrentState);
-            }
+            const osg::Switch::ValueList& values = node->getValueList();
+            if (newState >= values.size() || !values[newState] || std::count(values.begin(), values.end(), true) != 1)
+                node->setSingleChildOn(newState);
 
             traverse(node, nv);
         }
-
-    private:
-        unsigned int mCurrentState;
     };
 
     class AddSwitchCallbacksVisitor : public osg::NodeVisitor
@@ -796,11 +787,11 @@ namespace
 
         void apply(osg::Node& node) override { traverse(node); }
 
-        void apply(osg::Group& group) override
+        void apply(osg::MatrixTransform& node) override
         {
-            traverse(group);
+            traverse(node);
 
-            osg::Callback* callback = group.getUpdateCallback();
+            osg::Callback* callback = node.getUpdateCallback();
             if (callback)
             {
                 // We should remove empty transformation nodes and finished callbacks here
@@ -808,14 +799,12 @@ namespace
                 if (vfxCallback)
                 {
                     if (vfxCallback->mFinished)
-                        mToRemove.emplace_back(group.asNode(), group.getParent(0));
+                        mToRemove.emplace_back(node.asNode(), node.getParent(0));
                     else
                         mHasMagicEffects = true;
                 }
             }
         }
-
-        void apply(osg::MatrixTransform& node) override { traverse(node); }
 
         void apply(osg::Geometry&) override {}
     };
@@ -840,11 +829,11 @@ namespace
 
         void apply(osg::Node& node) override { traverse(node); }
 
-        void apply(osg::Group& group) override
+        void apply(osg::MatrixTransform& node) override
         {
-            traverse(group);
+            traverse(node);
 
-            osg::Callback* callback = group.getUpdateCallback();
+            osg::Callback* callback = node.getUpdateCallback();
             if (callback)
             {
                 MWRender::UpdateVfxCallback* vfxCallback = dynamic_cast<MWRender::UpdateVfxCallback*>(callback);
@@ -852,14 +841,12 @@ namespace
                 {
                     bool toRemove = mEffectId == "" || vfxCallback->mParams.mEffectId == mEffectId;
                     if (toRemove)
-                        mToRemove.emplace_back(group.asNode(), group.getParent(0));
+                        mToRemove.emplace_back(node.asNode(), node.getParent(0));
                     else
                         mHasMagicEffects = true;
                 }
             }
         }
-
-        void apply(osg::MatrixTransform& node) override { traverse(node); }
 
         void apply(osg::Geometry&) override {}
 
@@ -885,9 +872,9 @@ namespace
 
         void apply(osg::Node& node) override { traverse(node); }
 
-        void apply(osg::Group& group) override
+        void apply(osg::MatrixTransform& node) override
         {
-            osg::Callback* callback = group.getUpdateCallback();
+            osg::Callback* callback = node.getUpdateCallback();
             if (callback)
             {
                 MWRender::UpdateVfxCallback* vfxCallback = dynamic_cast<MWRender::UpdateVfxCallback*>(callback);
@@ -899,10 +886,8 @@ namespace
                     }
                 }
             }
-            traverse(group);
+            traverse(node);
         }
-
-        void apply(osg::MatrixTransform& node) override { traverse(node); }
 
         void apply(osg::Geometry&) override {}
 
@@ -970,46 +955,45 @@ namespace MWRender
     class TransparencyUpdater : public SceneUtil::StateSetUpdater
     {
     public:
-        TransparencyUpdater(const float alpha)
-            : mAlpha(alpha)
+        TransparencyUpdater(float actorFade, float alpha)
+            : mActorFade(actorFade)
+            , mAlpha(alpha)
         {
         }
 
-        void setAlpha(const float alpha) { mAlpha = alpha; }
+        void setAlpha(float actorFade, float alpha)
+        {
+            mActorFade = actorFade;
+            mAlpha = alpha;
+        }
 
     protected:
         void setDefaults(osg::StateSet* stateset) override
         {
             osg::BlendFunc* blendfunc(new osg::BlendFunc);
-            stateset->setAttributeAndModes(blendfunc, osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE);
+            stateset->setAttributeAndModes(blendfunc, osg::StateAttribute::ON);
 
             stateset->setRenderingHint(osg::StateSet::TRANSPARENT_BIN);
             stateset->setRenderBinMode(osg::StateSet::OVERRIDE_RENDERBIN_DETAILS);
 
-            // FIXME: overriding diffuse/ambient/emissive colors
-            osg::Material* material = new osg::Material;
-            material->setColorMode(osg::Material::OFF);
-            material->setDiffuse(osg::Material::FRONT_AND_BACK, osg::Vec4f(1, 1, 1, mAlpha));
-            material->setAmbient(osg::Material::FRONT_AND_BACK, osg::Vec4f(1, 1, 1, 1));
-            stateset->setAttributeAndModes(material, osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE);
-            stateset->addUniform(
-                new osg::Uniform("colorMode", 0), osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE);
+            stateset->addUniform(new osg::Uniform("alpha", mAlpha));
+            stateset->addUniform(new osg::Uniform("actorFade", mActorFade));
         }
 
         void apply(osg::StateSet* stateset, osg::NodeVisitor* /*nv*/) override
         {
-            osg::Material* material
-                = static_cast<osg::Material*>(stateset->getAttribute(osg::StateAttribute::MATERIAL));
-            material->setAlpha(osg::Material::FRONT_AND_BACK, mAlpha);
+            stateset->getUniform("actorFade")->set(mActorFade);
+            stateset->getUniform("alpha")->set(mAlpha);
         }
 
     private:
+        float mActorFade;
         float mAlpha;
     };
 
     struct Animation::AnimSource
     {
-        osg::ref_ptr<const SceneUtil::KeyframeHolder> mKeyframes;
+        std::shared_ptr<const SceneUtil::KeyframeHolder> mKeyframes;
 
         typedef std::map<std::string, osg::ref_ptr<SceneUtil::KeyframeController>> ControllerMap;
 
@@ -1017,7 +1001,7 @@ namespace MWRender
 
         const SceneUtil::TextKeyMap& getTextKeys() const;
 
-        osg::ref_ptr<const SceneUtil::AnimBlendRules> mAnimBlendRules;
+        std::shared_ptr<const SceneUtil::AnimBlendRules> mAnimBlendRules;
         bool mImportedNpcBlending = false;
         bool mImportedFamilyArms = false;
         bool mImportedFarArms = false; // Dagger and staff sets: see familyClinchArmBlendRules.
@@ -1103,6 +1087,7 @@ namespace MWRender
         , mBodyPitchRadians(0.f)
         , mHasMagicEffects(false)
         , mAlpha(1.f)
+        , mActorFade(1.f)
         , mPlayScriptedOnly(false)
         , mRequiresBoneMap(false)
     {
@@ -1210,17 +1195,19 @@ namespace MWRender
     }
 
     std::shared_ptr<Animation::AnimSource> Animation::addSingleAnimSource(
-        const std::string& kfname, const std::string& baseModel)
+        VFS::Path::NormalizedView kfname, const std::string& baseModel)
     {
         if (!mResourceSystem->getVFS()->exists(kfname))
             return nullptr;
 
-        auto animsrc = std::make_shared<AnimSource>();
-        animsrc->mKeyframes = mResourceSystem->getKeyframeManager()->get(VFS::Path::toNormalized(kfname));
+        std::shared_ptr<const SceneUtil::KeyframeHolder> keyframes = mResourceSystem->getKeyframeManager()->get(kfname);
 
-        if (!animsrc->mKeyframes || animsrc->mKeyframes->mTextKeys.empty()
-            || animsrc->mKeyframes->mKeyframeControllers.empty())
+        if (keyframes == nullptr || keyframes->mTextKeys.empty() || keyframes->mKeyframeControllers.empty())
             return nullptr;
+
+        std::shared_ptr<AnimSource> animsrc = std::make_shared<AnimSource>();
+
+        animsrc->mKeyframes = std::move(keyframes);
 
         const NodeMap& nodeMap = getNodeMap();
         const auto& controllerMap = animsrc->mKeyframes->mKeyframeControllers;
@@ -1286,19 +1273,19 @@ namespace MWRender
         // Do not enable global vanilla/player smoothing or inherit global rules.
         const bool importedNpc = mPtr.getClass().isNpc()
             && mPtr != MWBase::Environment::get().getWorld()->getPlayerPtr()
-            && kfname.starts_with("animations/brutal_npc/");
+            && kfname.value().starts_with("animations/brutal_npc/");
         // Weapon families opt only their first-person arm tracks into local
         // source fade rules. Never turn on global smoothing for their camera,
         // root, classic animations or other actors.
         const bool importedFamily = mPtr == MWBase::Environment::get().getWorld()->getPlayerPtr()
-            && (kfname.starts_with("animations/brutal_fp/")
-                || kfname.starts_with("animations/brutal_fp_shield/")
-                || kfname.starts_with("animations/brutal_fp_staff/")
-                || kfname.starts_with("animations/brutal_fp_dagger/"));
+            && (kfname.value().starts_with("animations/brutal_fp/")
+                || kfname.value().starts_with("animations/brutal_fp_shield/")
+                || kfname.value().starts_with("animations/brutal_fp_staff/")
+                || kfname.value().starts_with("animations/brutal_fp_dagger/"));
         animsrc->mImportedFamilyArms = importedFamily;
         animsrc->mImportedFarArms = importedFamily
-            && (kfname.starts_with("animations/brutal_fp_staff/") || kfname.starts_with("animations/brutal_fp_dagger/"));
-        animsrc->mImportedDaggerArms = importedFamily && kfname.starts_with("animations/brutal_fp_dagger/");
+            && (kfname.value().starts_with("animations/brutal_fp_staff/") || kfname.value().starts_with("animations/brutal_fp_dagger/"));
+        animsrc->mImportedDaggerArms = importedFamily && kfname.value().starts_with("animations/brutal_fp_dagger/");
         if (Settings::game().mSmoothAnimTransitions || importedNpc || importedFamily)
         {
             constexpr VFS::Path::ExtensionView yaml("yaml");
@@ -1311,7 +1298,7 @@ namespace MWRender
             // globalBlendConfigPath is only used with actors! Objects have no default blending.
             constexpr VFS::Path::NormalizedView globalBlendConfigPath("animations/animation-config.yaml");
 
-            osg::ref_ptr<const SceneUtil::AnimBlendRules> blendRules;
+            std::shared_ptr<const SceneUtil::AnimBlendRules> blendRules;
             if (importedNpc || importedFamily)
             {
                 blendRules = mResourceSystem->getAnimBlendRulesManager()->getRules(blendConfigPath, blendConfigPath);
@@ -1331,7 +1318,7 @@ namespace MWRender
             }
 
             // At this point blendRules will either be nullptr or an AnimBlendRules instance with > 0 rules inside.
-            animsrc->mAnimBlendRules = blendRules;
+            animsrc->mAnimBlendRules = std::move(blendRules);
         }
 
         return animsrc;
@@ -1445,6 +1432,12 @@ namespace MWRender
         }
 
         return -1.f;
+    }
+
+    void Animation::getTextKeyMaps(std::vector<const SceneUtil::TextKeyMap*>& out) const
+    {
+        for (const auto& source : mAnimSources)
+            out.push_back(&source->getTextKeys());
     }
 
     void Animation::handleTextKey(AnimState& state, std::string_view groupname,
@@ -1795,13 +1788,12 @@ namespace MWRender
 
     namespace
     {
-        osg::ref_ptr<const SceneUtil::AnimBlendRules> primaryCrouchBlendRules(
-            const osg::ref_ptr<const SceneUtil::AnimBlendRules>& base, bool cameraAncestor)
+        std::shared_ptr<const SceneUtil::AnimBlendRules> primaryCrouchBlendRules(
+            const std::shared_ptr<const SceneUtil::AnimBlendRules>& base, bool cameraAncestor)
         {
             using Rule = SceneUtil::AnimBlendRules::BlendRule;
-            osg::ref_ptr<SceneUtil::AnimBlendRules> rules = base
-                ? new SceneUtil::AnimBlendRules(*base, osg::CopyOp::SHALLOW_COPY)
-                : new SceneUtil::AnimBlendRules;
+            auto rules = base ? std::make_shared<SceneUtil::AnimBlendRules>(*base)
+                              : std::make_shared<SceneUtil::AnimBlendRules>();
             std::vector<Rule> overrides{
                 {"idlesneak*", "", "*", "", .22f, "sineInOut", false},
                 {"sneak*", "", "*", "", .22f, "sineInOut", false},
@@ -1820,8 +1812,8 @@ namespace MWRender
             return rules;
         }
 
-        osg::ref_ptr<const SceneUtil::AnimBlendRules> bodyCrouchBlendRules(
-            const osg::ref_ptr<const SceneUtil::AnimBlendRules>& base)
+        std::shared_ptr<const SceneUtil::AnimBlendRules> bodyCrouchBlendRules(
+            const std::shared_ptr<const SceneUtil::AnimBlendRules>& base)
         {
             // Preserve an explicitly enabled global body transition policy. With
             // no base rule the blend controller already defaults to duration zero.
@@ -1834,7 +1826,7 @@ namespace MWRender
     inline osg::Callback* Animation::handleBlendTransform(const osg::ref_ptr<osg::Node>& node,
         osg::ref_ptr<SceneUtil::KeyframeController> keyframeController,
         std::map<osg::ref_ptr<osg::Node>, osg::ref_ptr<ControllerType>>& blendControllers,
-        const AnimBlendStateData& stateData, const osg::ref_ptr<const SceneUtil::AnimBlendRules>& blendRules,
+        const AnimBlendStateData& stateData, const std::shared_ptr<const SceneUtil::AnimBlendRules>& blendRules,
         const AnimState& active)
     {
         osg::ref_ptr<ControllerType> animController;
@@ -2611,11 +2603,11 @@ namespace MWRender
         bool exterior = mPtr.isInCell() && mPtr.getCell()->getCell()->isExterior();
 
         mExtraLightSource = SceneUtil::addLight(parent, esmLight, Mask_Lighting, exterior);
-        mExtraLightSource->setActorFade(mAlpha);
+        mExtraLightSource->setActorFade(mActorFade);
     }
 
     void Animation::addEffect(std::string_view model, std::string_view effectId, bool loop, std::string_view bonename,
-        std::string_view texture, bool useAmbientLight)
+        std::string_view texture, bool useAmbientLight, bool autoTransform, const std::optional<osg::Matrix>& transform)
     {
         if (!mObjectRoot.get())
             return;
@@ -2647,13 +2639,16 @@ namespace MWRender
             parentNode = found->second;
         }
 
-        osg::ref_ptr<SceneUtil::PositionAttitudeTransform> trans = new SceneUtil::PositionAttitudeTransform;
-        if (!mPtr.getClass().isNpc())
+        osg::ref_ptr<osg::MatrixTransform> trans = new osg::MatrixTransform;
+
+        osg::Matrix finalTransform;
+
+        if (!mPtr.getClass().isNpc() && autoTransform)
         {
             osg::Vec3f bounds(MWBase::Environment::get().getWorld()->getHalfExtents(mPtr) * 2.f);
             float scale = std::max({ bounds.x(), bounds.y(), bounds.z() / 2.f }) / 64.f;
             if (scale > 1.f)
-                trans->setScale(osg::Vec3f(scale, scale, scale));
+                finalTransform = osg::Matrix::scale(scale, scale, scale);
             float offset = 0.f;
             if (bounds.z() < 128.f)
                 offset = bounds.z() - 128.f;
@@ -2661,8 +2656,17 @@ namespace MWRender
                 offset = 128.f - bounds.z();
             if (MWBase::Environment::get().getWorld()->isFlying(mPtr))
                 offset /= 20.f;
-            trans->setPosition(osg::Vec3f(0.f, 0.f, offset * scale));
+
+            finalTransform.setTrans(osg::Vec3f(0.f, 0.f, offset * scale));
         }
+
+        if (transform)
+        {
+            finalTransform *= (*transform);
+        }
+
+        trans->setMatrix(finalTransform);
+
         parentNode->addChild(trans);
 
         osg::ref_ptr<osg::Node> node
@@ -2671,8 +2675,8 @@ namespace MWRender
         if (useAmbientLight)
         {
             // Morrowind has a white ambient light attached to the root VFX node of the scenegraph
-            node->getOrCreateStateSet()->setAttributeAndModes(
-                getVFXLightModelInstance(), osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE);
+            SceneUtil::configureSunAmbientOverride(osg::Vec4f(1, 1, 1, 1), node->getOrCreateStateSet());
+            node->getOrCreateStateSet()->addUniform(new osg::Uniform("alpha", 1.f), osg::StateAttribute::ON);
         }
 
         mResourceSystem->getSceneManager()->setUpNormalsRTForStateSet(node->getOrCreateStateSet(), false);
@@ -2770,22 +2774,39 @@ namespace MWRender
             return found->second;
     }
 
-    void Animation::setAlpha(float alpha)
+    std::optional<osg::Matrixf> Animation::getNodeWorldTransform(std::string_view name) const
     {
-        if (alpha == mAlpha || !mObjectRoot)
+        const osg::Node* node = getNode(name);
+        if (node == nullptr)
+            return std::nullopt;
+        // Never empty: a node without parents still yields the path to itself
+        return osg::computeLocalToWorld(node->getParentalNodePaths()[0]);
+    }
+
+    std::optional<osg::Matrixf> Animation::getHeadWorldTransform() const
+    {
+        if (std::optional<osg::Matrixf> transform = getNodeWorldTransform("Head"))
+            return transform;
+        return getNodeWorldTransform("Bip01 Head");
+    }
+
+    void Animation::setAlpha(float actorFade, float alpha)
+    {
+        if ((alpha == mAlpha && actorFade == mActorFade) || !mObjectRoot)
             return;
         mAlpha = alpha;
+        mActorFade = actorFade;
 
         // TODO: we use it to fade actors away too, but it would be nice to have a dithering shader instead.
-        if (alpha != 1.f)
+        if (mAlpha != 1.f || mActorFade != 1.f)
         {
             if (mTransparencyUpdater == nullptr)
             {
-                mTransparencyUpdater = new TransparencyUpdater(alpha);
+                mTransparencyUpdater = new TransparencyUpdater(actorFade, alpha);
                 mObjectRoot->addCullCallback(mTransparencyUpdater);
             }
             else
-                mTransparencyUpdater->setAlpha(alpha);
+                mTransparencyUpdater->setAlpha(actorFade, alpha);
         }
         else
         {
@@ -2793,7 +2814,7 @@ namespace MWRender
             mTransparencyUpdater = nullptr;
         }
         if (mExtraLightSource)
-            mExtraLightSource->setActorFade(alpha);
+            mExtraLightSource->setActorFade(actorFade);
     }
 
     void Animation::setLightEffect(float effect)
@@ -2821,10 +2842,10 @@ namespace MWRender
                     mGlowLight = nullptr;
                 }
 
-                osg::ref_ptr<osg::Light> light(new osg::Light);
-                light->setDiffuse(osg::Vec4f(0, 0, 0, 0));
-                light->setSpecular(osg::Vec4f(0, 0, 0, 0));
-                light->setAmbient(osg::Vec4f(1.5f, 1.5f, 1.5f, 1.f));
+                SceneUtil::Light light;
+                light.setDiffuse(osg::Vec4f(0, 0, 0, 0));
+                light.setSpecular(osg::Vec4f(0, 0, 0, 0));
+                light.setAmbient(osg::Vec4f(1.5f, 1.5f, 1.5f, 1.f));
 
                 bool isExterior = mPtr.isInCell() && mPtr.getCell()->getCell()->isExterior();
                 SceneUtil::configureLight(light, radius, isExterior);
@@ -3055,8 +3076,9 @@ namespace MWRender
 
     // ------------------------------
 
-    PartHolder::PartHolder(osg::ref_ptr<osg::Node> node)
+    PartHolder::PartHolder(osg::ref_ptr<osg::Node> node, VFS::Path::NormalizedView model)
         : mNode(std::move(node))
+        , mModel(model)
     {
     }
 

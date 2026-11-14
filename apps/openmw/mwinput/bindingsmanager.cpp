@@ -635,12 +635,12 @@ namespace MWInput
                 const auto& inventory = player.getClass().getInventoryStore(player);
                 const auto right = inventory.getSlot(MWWorld::InventoryStore::Slot_CarriedRight);
                 const auto left = inventory.getSlot(MWWorld::InventoryStore::Slot_CarriedLeft);
-                const int type = right != inventory.end() && right->getType() == ESM::Weapon::sRecordId
-                    ? right->get<ESM::Weapon>()->mBase->mData.mType : ESM::Weapon::None;
+                const ESM::RefId type = right != inventory.end() && right->getType() == ESM::Weapon::sRecordId
+                    ? right->get<ESM::Weapon>()->mBase->mData.mType : ESM::RefId{};
                 const bool shield = left != inventory.end() && left->getType() == ESM::Armor::sRecordId
                     && !(MWMechanics::getWeaponType(type)->mFlags & ESM::WeaponType::TwoHanded);
-                const bool parryWeapon = type == ESM::Weapon::ShortBladeOneHand || type == ESM::Weapon::LongBladeOneHand
-                    || type == ESM::Weapon::BluntOneHand || type == ESM::Weapon::AxeOneHand
+                const bool parryWeapon = type == ESM::WeaponType::ShortBladeOneHand || type == ESM::WeaponType::LongBladeOneHand
+                    || type == ESM::WeaponType::BluntOneHand || type == ESM::WeaponType::AxeOneHand
                     || (MWMechanics::brutalStaffWeapon(type) && MWMechanics::brutalDmFirstPerson());
                 if (stats.getDrawState() == MWMechanics::DrawState::Weapon && !stats.isDead() && !stats.isParalyzed()
                     && ((shield && Settings::game().mPlayerActiveShieldBlock)

@@ -745,6 +745,18 @@ de ordinarie fonterna i Morrowind. Bocka denna ruta om du ändå föredrar ordin
         <source>Do not ask again</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Error writing Launcher configuration backup file</source>
+        <translation>Fel när säkerhetskopia av Startarens-konfigurationsfil skulle skrivas</translation>
+    </message>
+    <message>
+        <source>Error opening Launcher configuration file</source>
+        <translation>Fel när Startarens-konfigurationsfil skulle öppnas</translation>
+    </message>
+    <message>
+        <source>Error opening Launcher configuration backup file</source>
+        <translation>Fel när säkerhetskopia av Startarens-konfigurationsfil skulle öppnas</translation>
+    </message>
 </context>
 <context>
     <name>Launcher::SettingsPage</name>
@@ -1287,6 +1299,8 @@ Loggar och inställningar som ändras genom startaren och inne i spelet kommer s
         <translation>Ljussättning</translation>
     </message>
     <message>
+    </message>
+    <message>
         <source>Tooltip</source>
         <translation>Inforuta</translation>
     </message>
@@ -1305,18 +1319,6 @@ Loggar och inställningar som ändras genom startaren och inne i spelet kommer s
     <message>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Effects of reflected Absorb spells are not mirrored - like in Morrowind.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Effekter av reflekterade &quot;Absorb&quot;-besvärjelser speglas inte – såsom i Morrowind.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Set the internal handling of light sources.&lt;/p&gt;
-&lt;p&gt;&quot;Shaders (compatibility)&quot; It is recommended to use this with older hardware and a light limit closer to 8.&lt;/p&gt;
-&lt;p&gt; &quot;Shaders&quot; carries all of the benefits that &quot;Shaders (compatibility)&quot; does, but uses a modern approach that allows for a higher max lights count with little to no performance penalties on modern hardware.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Välj intern hantering av ljuskällor.&lt;/p&gt;
-&lt;p&gt;&quot;Shader (kompatibilitet)&quot; Rekommenderas för äldre hårdvara tillsammans med en ljusbegränsning nära 8.&lt;/p&gt;
-&lt;p&gt; &quot;Shader&quot; har alla fördelar som &quot;Shader (kompatibilitet)&quot; har, men med ett modernt förhållningssätt som möjliggör fler maximalt antal ljuskällor med liten eller ingen prestandaförlust på modern hårdvara.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
-    </message>
-    <message>
-        <source>Shaders (compatibility)</source>
-        <translation>Shader (kompatibilitet)</translation>
     </message>
     <message>
         <source>In third-person view, use the camera as the sound listener instead of the player character.</source>
@@ -1392,7 +1394,7 @@ Loggar och inställningar som ändras genom startaren och inne i spelet kommer s
     </message>
     <message>
         <source>Axis-Aligned Bounding Box</source>
-        <translation>Axeljusterad begränsningslåda</translation>
+        <translation>Axelorienterad avgränsningslåda (AABB)</translation>
     </message>
     <message>
         <source>Rotating Box</source>
@@ -1542,6 +1544,8 @@ Loggar och inställningar som ändras genom startaren och inne i spelet kommer s
         <translation>Ljussättningsmetod</translation>
     </message>
     <message>
+    </message>
+    <message>
         <source>Audio Device</source>
         <translation>Ljudenhet</translation>
     </message>
@@ -1604,18 +1608,6 @@ Loggar och inställningar som ändras genom startaren och inne i spelet kommer s
     <message>
         <source>Default Cell</source>
         <translation>Förinställd cell</translation>
-    </message>
-    <message>
-        <source>Bounds</source>
-        <translation>Bounds</translation>
-    </message>
-    <message>
-        <source>Primitives</source>
-        <translation>Primitives</translation>
-    </message>
-    <message>
-        <source>None</source>
-        <translation>None</translation>
     </message>
     <message>
         <source>Always Allow Actors to Follow over Water</source>

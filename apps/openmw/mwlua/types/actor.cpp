@@ -617,7 +617,7 @@ namespace MWLua
                 auto& inv = ptr.getClass().getInventoryStore(ptr);
                 const auto it = inv.getSlot(MWWorld::InventoryStore::Slot_CarriedRight);
                 if (it == inv.end() || it->getType() != ESM::Weapon::sRecordId) return;
-                const int type = it->get<ESM::Weapon>()->mBase->mData.mType;
+                const ESM::RefId type = it->get<ESM::Weapon>()->mBase->mData.mType;
                 // Finishers work with every melee weapon, one- and two-handed.
                 if (MWMechanics::getWeaponType(type)->mWeaponClass != ESM::WeaponType::Melee) return;
                 auto& armed = ptr.getClass().getCreatureStats(ptr).mPowerStrike;
@@ -1171,7 +1171,8 @@ namespace MWLua
             context.mLuaManager->addAction(
                 [self = Object(self), damages = std::move(damageCpp),
                     attacker = options.get<sol::optional<Object>>("attacker"), weaponId,
-                    successful = options.get<bool>("successful"), sourceType = sourceType, lethalVelocity, lethalPoint,
+                    successful = options.get<bool>("successful"), sourceType,
+                    ignoreStagger = options.get_or("ignoreStagger", false), lethalVelocity, lethalPoint,
                     attackId = options.get_or<uint64_t>("brutalAttackId", 0),
                     lua = context.mLua, manager = context.mLuaManager] {
                     MWWorld::Ptr attackerPtr;
@@ -1183,7 +1184,7 @@ namespace MWLua
                     const auto& stats = target.getClass().getCreatureStats(target);
                     const bool aliveBefore = !stats.isDead();
                     const float healthBefore = stats.getHealth().getCurrent();
-                    target.getClass().onHit(target, damages, weaponId, attackerPtr, successful, sourceType);
+                    target.getClass().onHit(target, damages, weaponId, attackerPtr, successful, sourceType, ignoreStagger);
                     if (lethalVelocity && aliveBefore && stats.isDead()
                         && healthBefore > stats.getHealth().getCurrent()
                         && (target.getType() == ESM::REC_NPC_ || MWPhysics::findCreatureRig(target))
@@ -1224,6 +1225,38 @@ namespace MWLua
                         });
                 },
                 "HitAction");
+        };
+
+        actor["setKnockedDown"] = [context](const Object& object, bool value) {
+            if (!object.isGObject() && !object.isSelfObject())
+                throw std::runtime_error("Can only be used in global scripts or in local scripts on self.");
+            context.mLuaManager->addAction(
+                [obj = Object(object), value] {
+                    const MWWorld::Ptr ptr = obj.ptr();
+                    ptr.getClass().getCreatureStats(ptr).setKnockedDown(value);
+                },
+                "SetKnockedDownAction");
+        };
+
+        actor["getKnockedDown"] = [](const Object& object) {
+            const MWWorld::Ptr ptr = object.ptr();
+            return ptr.getClass().getCreatureStats(ptr).getKnockedDown();
+        };
+
+        actor["setHitRecovery"] = [context](const Object& object, bool value) {
+            if (!object.isGObject() && !object.isSelfObject())
+                throw std::runtime_error("Can only be used in global scripts or in local scripts on self.");
+            context.mLuaManager->addAction(
+                [obj = Object(object), value] {
+                    const MWWorld::Ptr ptr = obj.ptr();
+                    ptr.getClass().getCreatureStats(ptr).setHitRecovery(value);
+                },
+                "SetHitRecoveryAction");
+        };
+
+        actor["getHitRecovery"] = [](const Object& object) {
+            const MWWorld::Ptr ptr = object.ptr();
+            return ptr.getClass().getCreatureStats(ptr).getHitRecovery();
         };
 
         addActorStatsBindings(actor, context);

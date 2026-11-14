@@ -119,7 +119,7 @@ namespace MWPhysics
         if (ptr.isEmpty() || ptr.getType() != ESM::Creature::sRecordId)
             return nullptr;
         static const std::map<std::string, CreatureRig> rigs = loadRigs();
-        const auto found = rigs.find(rigKey(ptr.get<ESM::Creature>()->mBase->mModel));
+        const auto found = rigs.find(rigKey(ptr.get<ESM::Creature>()->mBase->mModel.getOriginal()));
         return found == rigs.end() ? nullptr : &found->second;
     }
 }

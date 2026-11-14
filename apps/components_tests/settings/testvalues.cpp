@@ -34,14 +34,14 @@ namespace Settings
         {
             Index index;
             Values values(index);
-            EXPECT_EQ(values.mCamera.mFieldOfView.get(), 60);
+            EXPECT_EQ(values.mCamera.mFieldOfView.get(), 69);
         }
 
         TEST_F(SettingsValuesTest, shouldFillIndexOnLoad)
         {
             Index index;
             Values values(index);
-            EXPECT_EQ(index.get<float>("Camera", "field of view").get(), 60);
+            EXPECT_EQ(index.get<float>("Camera", "field of view").get(), 69);
         }
 
         TEST_F(SettingsValuesTest, constructorShouldThrowExceptionOnMissingSetting)
@@ -94,7 +94,7 @@ namespace Settings
             Values values(std::move(defaultValues));
             EXPECT_EQ(values.mCamera.mFieldOfView.get(), 61);
             values.mCamera.mFieldOfView.reset();
-            EXPECT_EQ(values.mCamera.mFieldOfView.get(), 60);
+            EXPECT_EQ(values.mCamera.mFieldOfView.get(), 69);
         }
 
         TEST_F(SettingsValuesTest, moveConstructorShouldSanitize)

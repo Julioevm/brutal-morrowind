@@ -7,6 +7,7 @@
 #include <osg/Matrixf>
 #include <osg/Vec3d>
 
+#include <memory>
 #include <string_view>
 #include <functional>
 #include <map>
@@ -135,14 +136,14 @@ namespace SceneUtil
         osg::ref_ptr<osg::RefMatrix> mSkinToSkelMatrix;
 
         using VertexList = std::vector<unsigned short>;
-        struct InfluenceData : public osg::Referenced
+        struct InfluenceData
         {
             std::vector<BoneInfo> mBones;
             std::vector<std::pair<BoneWeights, VertexList>> mInfluences;
             osg::Matrixf mTransform;
             std::string mRootBone;
         };
-        osg::ref_ptr<InfluenceData> mData;
+        std::shared_ptr<InfluenceData> mData;
         std::vector<Bone*> mNodes;
         BonePoseOverrides mBonePoseOverrides; // Owned by this instance; mData remains shared and immutable.
         osg::Matrixf getBoneMatrix(std::size_t index) const;

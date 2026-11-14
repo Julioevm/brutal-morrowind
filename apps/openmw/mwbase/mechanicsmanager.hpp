@@ -12,8 +12,12 @@
 
 namespace osg
 {
-    class Stats;
     class Vec3f;
+}
+
+namespace Misc
+{
+    class FrameStats;
 }
 
 namespace ESM
@@ -260,8 +264,6 @@ namespace MWBase
 
         virtual void clear() = 0;
 
-        virtual bool isAggressive(const MWWorld::Ptr& ptr, const MWWorld::Ptr& target) = 0;
-
         /// Resurrects the player if necessary
         virtual void resurrect(const MWWorld::Ptr& ptr) = 0;
 
@@ -310,7 +312,7 @@ namespace MWBase
         virtual bool isRunning(const MWWorld::Ptr& ptr) = 0;
         virtual bool isSneaking(const MWWorld::Ptr& ptr) = 0;
 
-        virtual void reportStats(unsigned int frameNumber, osg::Stats& stats) const = 0;
+        virtual void reportStats(unsigned int frameNumber, Misc::FrameStats& stats) const = 0;
 
         virtual int getGreetingTimer(const MWWorld::Ptr& ptr) const = 0;
         virtual float getAngleToPlayer(const MWWorld::Ptr& ptr) const = 0;

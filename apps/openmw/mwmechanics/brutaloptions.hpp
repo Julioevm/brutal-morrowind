@@ -21,9 +21,9 @@ namespace MWMechanics
         return Settings::game().mBrutalEnabled && sBrutalDualWield;
     }
 
-    inline bool brutalStaffWeapon(int type)
+    inline bool brutalStaffWeapon(ESM::RefId type)
     {
-        return type == ESM::Weapon::BluntTwoWide || type == ESM::Weapon::SpearTwoWide;
+        return type == ESM::WeaponType::BluntTwoWide || type == ESM::WeaponType::SpearTwoWide;
     }
 }
 

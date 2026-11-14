@@ -37,14 +37,10 @@ if (BRUTAL_PYTHON_RUNTIME)
     add_custom_target(dm-import-python ALL DEPENDS "${DM_IMPORT_BUILD_DIR}/python/.copied")
 endif ()
 
-if (WIN32)
-    set(DM_IMPORT_INSTALL_DIR "dm-import")
-    set(DM_IMPORT_BIN_DIR ".")
-    set(DM_IMPORT_RELATIVE "dm-import")
-elseif (UNIX AND NOT APPLE)
-    set(DM_IMPORT_INSTALL_DIR "${DATADIR}/dm-import")
-    set(DM_IMPORT_BIN_DIR "${BINDIR}")
-    file(RELATIVE_PATH DM_IMPORT_RELATIVE "${BINDIR}" "${DM_IMPORT_INSTALL_DIR}")
+if (NOT APPLE)
+    set(DM_IMPORT_INSTALL_DIR "${CMAKE_INSTALL_DATADIR}/dm-import")
+    file(RELATIVE_PATH DM_IMPORT_RELATIVE
+        "${CMAKE_INSTALL_FULL_BINDIR}" "${CMAKE_INSTALL_FULL_DATADIR}/dm-import")
 endif ()
 
 openmw_add_executable(brutalmorrowind-import launcher.cpp)
@@ -59,7 +55,7 @@ add_custom_target(dm-import-place ALL
     COMMENT "Placing the importer next to brutalmorrowind-import")
 
 if (DEFINED DM_IMPORT_INSTALL_DIR)
-    install(TARGETS brutalmorrowind-import RUNTIME DESTINATION "${DM_IMPORT_BIN_DIR}")
+    install(TARGETS brutalmorrowind-import RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
     install(DIRECTORY "${DM_IMPORT_BUILD_DIR}/" DESTINATION "${DM_IMPORT_INSTALL_DIR}"
         PATTERN "__pycache__" EXCLUDE PATTERN ".copied" EXCLUDE)
 endif ()

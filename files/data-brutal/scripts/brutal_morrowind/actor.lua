@@ -35,7 +35,7 @@ local function nativeImpact(data)
         or types.Item.objectIsInstance(data.hitObject)) then return end
     if data.speed < C.wallMinSpeed or math.abs(data.normal.z) > 0.7 then return end
     self:sendEvent('Hit', {attacker = reaction.attacker, successful = true,
-        sourceType = 'unspecified', strength = 1,
+        sourceType = 'unspecified', strength = 1, windUp = -1,
         damage = {health = C.wallDamage * math.min(data.speed / reaction.speed, 2), fatigue = 20},
         hitPos = data.hitPos,
     })

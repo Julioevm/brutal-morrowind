@@ -42,6 +42,8 @@ namespace MWSound
     class SoundBase;
     class Sound;
     class Stream;
+    class HeadCache;
+    class WarmQueue;
 
     using SoundPtr = Misc::ObjectPtr<Sound>;
     using StreamPtr = Misc::ObjectPtr<Stream>;
@@ -49,6 +51,10 @@ namespace MWSound
     class SoundManager : public MWBase::SoundManager
     {
         const VFS::Manager* mVFS;
+
+        std::unique_ptr<HeadCache> mHeadCache;
+        std::unique_ptr<WarmQueue> mWarmQueue;
+        const MWWorld::Cell* mLastWarmedCell = nullptr;
 
         std::unique_ptr<SoundOutput> mOutput;
 
@@ -136,6 +142,8 @@ namespace MWSound
 
         void updateSounds(float duration);
         void updateRegionSound(float duration);
+        void warmCellSounds();
+        void enqueueWarmSound(const ESM::RefId& soundId);
         void updateWaterSound();
         void updateMusic(float duration);
 
@@ -155,6 +163,7 @@ namespace MWSound
 
     protected:
         DecoderPtr getDecoder();
+        DecoderPtr getStreamDecoder();
         friend class OpenALOutput;
 
         void stopSound(SoundBuffer* sfx, const MWWorld::ConstPtr& ptr);
@@ -163,6 +172,8 @@ namespace MWSound
     public:
         SoundManager(const VFS::Manager* vfs, bool useSound);
         ~SoundManager() override;
+
+        void warmStoreSounds();
 
         void processChangedSettings(const Settings::CategorySettingVector& settings) override;
 

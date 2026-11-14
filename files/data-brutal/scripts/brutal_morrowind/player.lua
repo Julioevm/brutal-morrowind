@@ -134,7 +134,7 @@ local function strikeActor(target, direction, slide)
         if I.BrutalAdrenaline.reserveSuperKick(id) then superKickId = id end
     end
     target:sendEvent('Hit', {
-        attacker = self, successful = true, sourceType = 'melee', strength = 1,
+        attacker = self, successful = true, sourceType = 'melee', strength = 1, windUp = -1,
         brutalKick = true, brutalSlide = slide == true, brutalSuperKick = superKickId ~= nil,
         damage = {health = superKickId and C.superKickHealthDamage or C.healthDamage,
             fatigue = C.fatigueDamage},
@@ -204,7 +204,7 @@ local function updateBash(dt, scale)
     if not target then return end
     -- A Hit from Lua is not subject to the target's own block: the bash breaks its guard.
     target:sendEvent('Hit', {
-        attacker = self, successful = true, sourceType = 'melee', strength = 1,
+        attacker = self, successful = true, sourceType = 'melee', strength = 1, windUp = -1,
         brutalBash = shieldSound(),
         damage = {health = C.bashHealthDamage, fatigue = C.bashFatigueDamage},
         hitPos = target.position + util.vector3(0, 0, 70),

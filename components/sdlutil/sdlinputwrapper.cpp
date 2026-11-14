@@ -29,8 +29,7 @@ namespace SDLUtil
         , mMouseRelative(false)
         , mFirstMouseMove(true)
         , mMouseZ(0)
-        , mMouseX(0)
-        , mMouseY(0)
+        , mPendingWheelY(0.0)
         , mWindowHasFocus(true)
         , mMouseInWindow(true)
     {
@@ -476,9 +475,19 @@ namespace SDLUtil
         }
         else if (evt.type == SDL_MOUSEWHEEL)
         {
-            mMouseZ += packEvt.zrel = (evt.wheel.y * 120);
+            double preciseY = evt.wheel.preciseY;
+
+            mPendingWheelY += preciseY * 120.0;
+            const int zrel = static_cast<int>(mPendingWheelY);
+            mPendingWheelY -= zrel;
+
+            mMouseZ += zrel;
+            packEvt.zrel = zrel;
             packEvt.z = mMouseZ;
             packEvt.type = SDL_MOUSEWHEEL;
+
+            packEvt.x = evt.wheel.mouseX * mScaleX;
+            packEvt.y = evt.wheel.mouseY * mScaleY;
         }
         else
         {
