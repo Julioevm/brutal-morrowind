@@ -3,15 +3,18 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdint>
 #include <functional>
 #include <map>
 #include <memory>
 #include <optional>
 #include <span>
 #include <unordered_map>
+#include <unordered_set>
 #include <variant>
 
 #include <osg/BoundingBox>
+#include <osg/Matrixf>
 #include <osg/Quat>
 #include <osg/Timer>
 #include <osg/ref_ptr>
@@ -42,6 +45,7 @@ namespace Resource
 }
 
 class btCollisionWorld;
+class btSequentialImpulseConstraintSolver;
 class btBroadphaseInterface;
 class btDefaultCollisionConfiguration;
 class btCollisionDispatcher;
@@ -54,6 +58,7 @@ namespace MWPhysics
     class HeightField;
     class Object;
     class Actor;
+    class Ragdoll;
     class PhysicsTaskScheduler;
     class Projectile;
     enum ScriptedCollisionType : char;
@@ -83,6 +88,21 @@ namespace MWPhysics
         ActorFrameData(Actor& actor, bool inert, bool waterCollision, float slowFall, float waterlevel, bool isPlayer);
         osg::Vec3f mPosition;
         osg::Vec3f mInertia;
+        osg::Vec3f mExternalVelocity;
+        osg::Vec3f mLocomotionVelocity;
+        osg::Vec3f mSimulationVelocity;
+        const bool mKineticMovement;
+        const bool mBrutalSliding;
+        const bool mBrutalSlideLow;
+        const float mBrutalSlideFrictionBlend; // Active glide, then the phase-3 exit only.
+        bool mBrutalSlideDownhill = false;
+        osg::Vec3f mBrutalSlideGroundNormal;
+        osg::Vec3f mBrutalSlideGroundPoint;
+        float mSlideActorContactTime = 0.f;
+        float mExternalImpactSpeed = 0.f;
+        osg::Vec3f mExternalImpactPosition;
+        osg::Vec3f mExternalImpactNormal;
+        const btCollisionObject* mExternalImpactObject = nullptr;
         const btCollisionObject* mStandingOn;
         bool mIsOnGround;
         bool mIsOnSlope;
@@ -95,7 +115,7 @@ namespace MWPhysics
         osg::Vec3f mMovement;
         osg::Vec3f mLastStuckPosition;
         const float mWaterlevel;
-        const float mHalfExtentsZ;
+        float mHalfExtentsZ;
         float mOldHeight;
         unsigned int mStuckFrames;
         const bool mFlying;
@@ -201,6 +221,43 @@ namespace MWPhysics
 
         /// Apply new positions to actors
         void moveActors();
+        void applyObjectImpulse(const MWWorld::Ptr& ptr, const osg::Vec3f& impulse, float mass);
+        void addReleasedEquipment(const MWWorld::Ptr& ptr);
+        void initializeReleasedEquipment(const MWWorld::Ptr& item, const MWWorld::Ptr& actor,
+            const osg::Vec3f& linear, const osg::Vec3f& angular);
+        bool getRagdollEquipmentFrame(const MWWorld::Ptr& actor, bool left,
+            osg::Matrixf& frame, osg::Vec3f& linear, osg::Vec3f& angular) const;
+        std::vector<osg::Vec3f> getReleasedEquipmentState(const MWWorld::Ptr& item) const;
+        void moveDynamicObjects();
+        void createNpcRagdoll(const MWWorld::Ptr& ptr,
+            const std::map<std::string, osg::Matrixf, std::less<>>& bones, const osg::Vec3f& kick);
+        void stopNpcRagdoll(const MWWorld::Ptr& ptr);
+        bool detachNpcRagdollHead(const MWWorld::Ptr& ptr, const osg::Vec3f& cutVelocity,
+            const osg::Vec3f& headAngularImpulse);
+        bool detachNpcRagdollTorso(const MWWorld::Ptr& ptr, const osg::Vec3f& cutVelocity,
+            const osg::Vec3f& upperSeparation, const std::string& savedPose = {});
+        std::string getNpcBisectionPoseData(const MWWorld::Ptr& ptr) const;
+        bool detachNpcRagdollLimbs(const MWWorld::Ptr& ptr, unsigned mask,
+            const osg::Vec3f& cutVelocity, const std::string& savedPose = {});
+        std::string getNpcLimbSeveringPoseData(const MWWorld::Ptr& ptr) const;
+        unsigned getNpcSeveredLimbsMask(const MWWorld::Ptr& ptr) const;
+        void moveNpcRagdolls(float duration);
+        // Called after OSG has evaluated this frame's animation controllers.
+        void sampleNpcRagdollAnimation(float duration);
+        bool applyNpcKick(const MWWorld::Ptr& ptr, const osg::Vec3f& kick, const MWWorld::Ptr& attacker, bool continuing = false,
+            bool knockDown = false, bool slideTrip = false);
+        bool applyNpcSuperKick(const MWWorld::Ptr& ptr, const osg::Vec3f& velocity,
+            const MWWorld::Ptr& attacker, std::uint64_t kickId);
+        std::map<std::string, double> getNpcSuperKickState(const MWWorld::Ptr& ptr) const;
+        std::vector<osg::Vec3f> getNpcRagdollDynamics(const MWWorld::Ptr& ptr) const;
+        std::vector<osg::Vec3f> getNpcRagdollState(const MWWorld::Ptr& ptr) const;
+        std::map<std::string, double> getNpcRagdollEnhancementState(const MWWorld::Ptr& ptr) const;
+        bool applyNpcRagdollImpact(const MWWorld::Ptr& ptr, std::size_t part, const osg::Vec3f& point,
+            const osg::Vec3f& impulse, std::uint64_t id);
+        // Kicks the nearest reachable ragdoll part (body or severed head). Returns the corpse,
+        // or an empty Ptr; headHit reports a severed head.
+        MWWorld::Ptr kickNpcRagdoll(const osg::Vec3f& origin, const osg::Vec3f& forward, float reach,
+            float minimumDot, const osg::Vec3f& velocity, bool& headHit, osg::Vec3f& hitPoint, std::size_t& hitPart);
         void debugDraw();
 
         std::vector<MWWorld::Ptr> getCollisions(const MWWorld::ConstPtr& ptr, int collisionGroup,
@@ -291,12 +348,17 @@ namespace MWPhysics
 
     private:
         void updateWater();
+        bool applyNpcKickImpl(const MWWorld::Ptr& ptr, const osg::Vec3f& kick, const MWWorld::Ptr& attacker,
+            bool continuing, bool knockDown, bool superKick, bool slideTrip = false);
+        void refreshSuperKickActors();
+        void processSuperKickContacts();
 
         void prepareSimulation(bool willSimulate, std::vector<Simulation>& simulations);
 
         std::unique_ptr<btBroadphaseInterface> mBroadphase;
         std::unique_ptr<btDefaultCollisionConfiguration> mCollisionConfiguration;
         std::unique_ptr<btCollisionDispatcher> mDispatcher;
+        std::unique_ptr<btSequentialImpulseConstraintSolver> mDynamicsSolver;
         std::unique_ptr<btCollisionWorld> mCollisionWorld;
         std::unique_ptr<PhysicsTaskScheduler> mTaskScheduler;
 
@@ -304,7 +366,32 @@ namespace MWPhysics
         Resource::ResourceSystem* mResourceSystem;
 
         using ObjectMap = std::unordered_map<const MWWorld::LiveCellRefBase*, std::shared_ptr<Object>>;
+        struct PushRagdoll { float age=0.f, settled=0.f, peakZ=0.f, previousZ=0.f, downSpeed=0.f, unsupported=0.f;
+            bool landed=false, supported=false, knockDown=false; MWWorld::Ptr attacker; };
+        std::unordered_map<const MWWorld::LiveCellRefBase*, PushRagdoll> mPushRagdolls;
+        struct SuperKickSource
+        {
+            MWWorld::Ptr attacker;
+            std::uint64_t kickId = 0;
+            unsigned knockdowns = 0, rejectedContacts = 0;
+        };
+        std::unordered_map<const MWWorld::LiveCellRefBase*, SuperKickSource> mSuperKickSources;
+        std::unordered_map<const MWWorld::LiveCellRefBase*, std::uint64_t> mSuperKickVictims;
+        // Accepted nonces remain consumed when a source recovers or is removed;
+        // replaying the queued action must never create another powered launch.
+        std::unordered_set<std::uint64_t> mSuperKickIds;
+        struct KickWatch { MWWorld::Ptr actor, attacker; osg::Vec3f direction; float age=0.f; float lift=0.f; };
+        std::unordered_map<const MWWorld::LiveCellRefBase*, KickWatch> mKickWatches;
         ObjectMap mObjects;
+        std::unordered_map<const MWWorld::LiveCellRefBase*, std::unique_ptr<Ragdoll>> mRagdolls;
+        struct RagdollAnimationSample
+        {
+            std::map<std::string, osg::Matrixf, std::less<>> bones;
+            std::map<std::string, std::pair<osg::Vec3f, osg::Vec3f>, std::less<>> motion;
+            osg::Vec3f renderedRootPosition;
+            float deadAge = 0.f;
+        };
+        std::unordered_map<const MWWorld::LiveCellRefBase*, RagdollAnimationSample> mRagdollAnimation;
 
         std::map<Object*, bool> mAnimatedObjects; // stores pointers to elements in mObjects
 

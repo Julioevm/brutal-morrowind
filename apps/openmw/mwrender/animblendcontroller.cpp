@@ -169,6 +169,7 @@ namespace MWRender
         {
             // Default blend settings
             mBlendDuration = 0;
+            mBlendAnimationTime = false;
             mEasingFn = &Easings::sineOut;
 
             if (blendRules)
@@ -183,6 +184,7 @@ namespace MWRender
                     {
                         mEasingFn = it->second;
                         mBlendDuration = blendRule->mDuration;
+                        mBlendAnimationTime = blendRule->mAnimationTime;
                     }
                     else
                     {
@@ -285,10 +287,10 @@ namespace MWRender
         if (mBlendTrigger)
         {
             mBlendTrigger = false;
-            mBlendStartTime = time;
+            mBlendStartTime = mBlendAnimationTime ? mAnimState.mStartTime : time;
         }
 
-        calculateInterpFactor(time);
+        calculateInterpFactor(mBlendAnimationTime ? *mKeyframeTrack->mTime : time);
 
         if (mInterpActive)
             applyBoneBlend(node);
@@ -313,7 +315,7 @@ namespace MWRender
         if (mBlendTrigger)
         {
             mBlendTrigger = false;
-            mBlendStartTime = time;
+            mBlendStartTime = mBlendAnimationTime ? mAnimState.mStartTime : time;
 
             // Nif mRotationScale is used here because it's unaffected by the side-effects of RotationController
             mBlendStartRot = node->mRotationScale.toOsgMatrix().getRotate();
@@ -350,7 +352,7 @@ namespace MWRender
             }
         }
 
-        calculateInterpFactor(time);
+        calculateInterpFactor(mBlendAnimationTime ? *mKeyframeTrack->mTime : time);
 
         if (mInterpActive)
         {

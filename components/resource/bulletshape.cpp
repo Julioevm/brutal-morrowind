@@ -5,6 +5,7 @@
 
 #include <BulletCollision/CollisionShapes/btBoxShape.h>
 #include <BulletCollision/CollisionShapes/btCompoundShape.h>
+#include <BulletCollision/CollisionShapes/btConvexHullShape.h>
 #include <BulletCollision/CollisionShapes/btHeightfieldTerrainShape.h>
 #include <BulletCollision/CollisionShapes/btScaledBvhTriangleMeshShape.h>
 
@@ -51,6 +52,9 @@ namespace Resource
                 const btBoxShape* boxshape = static_cast<const btBoxShape*>(shape);
                 return CollisionShapePtr(new btBoxShape(*boxshape));
             }
+
+            if (shape->getShapeType() == CONVEX_HULL_SHAPE_PROXYTYPE)
+                return CollisionShapePtr(new btConvexHullShape(*static_cast<const btConvexHullShape*>(shape)));
 
             if (shape->getShapeType() == TERRAIN_SHAPE_PROXYTYPE)
                 return CollisionShapePtr(

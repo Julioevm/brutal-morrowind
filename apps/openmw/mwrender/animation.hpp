@@ -17,6 +17,8 @@
 #include <components/sceneutil/util.hpp>
 #include <components/vfs/pathutil.hpp>
 
+#include <osg/MatrixTransform>
+#include <optional>
 #include <map>
 #include <span>
 #include <string>
@@ -121,6 +123,10 @@ namespace MWRender
 
         virtual bool updateCarriedLeftVisible(const int weaptype) const { return false; }
 
+        // Only the separate player torso/legs opt into visual crouch crossfades.
+        virtual bool useBodyCrouchTransitions() const { return false; }
+        virtual bool usePrimaryCrouchTransitions() const { return false; }
+
         typedef std::unordered_map<std::string, osg::ref_ptr<osg::MatrixTransform>, Misc::StringUtils::CiHash,
             Misc::StringUtils::CiEqual>
             NodeMap;
@@ -212,6 +218,12 @@ namespace MWRender
 
         mutable NodeMap mNodeMap;
         mutable bool mNodeMapCreated;
+        bool mRagdollPose = false;
+        std::shared_ptr<float> mRagdollRecoveryProgress;
+        float mRagdollRecoveryDuration=0.f;
+        ActiveControllersVector mRagdollRecoveryControllers;
+        int mRequestedActive = 2;
+        std::vector<std::pair<osg::ref_ptr<osg::MatrixTransform>, osg::Matrixf>> mRagdollLocalPose;
 
         MWWorld::Ptr mPtr;
 
@@ -247,6 +259,9 @@ namespace MWRender
 
         bool mPlayScriptedOnly;
         bool mRequiresBoneMap;
+        // Secondary body sync installs its complete visual state map atomically.
+        bool mDeferActiveGroupReset = false;
+        bool mDeferredActiveGroupReset = false;
 
         const NodeMap& getNodeMap() const;
 
@@ -425,6 +440,9 @@ namespace MWRender
 
         /// Get the absolute position in the animation track of the text key
         float getTextKeyTime(std::string_view textKey) const;
+        // Whether the top source holding `owner` also holds `key`. getTextKeyTime searches every source, so
+        // a key missing from the active weapon set would otherwise be found in a set beneath it.
+        bool activeSourceHasTextKey(std::string_view owner, std::string_view key) const;
 
         /// Get the current absolute position in the animation track for the animation that is currently playing from
         /// the given group.
@@ -439,6 +457,29 @@ namespace MWRender
         float getVelocity(std::string_view groupname) const;
 
         virtual osg::Vec3f runAnimation(float duration);
+
+        // Remove a rendered-only correction before controllers capture or advance their source pose.
+        virtual void restoreTransientPose() {}
+
+        // World transforms are applied parents first after physics moves the actor root.
+        std::optional<osg::Matrixf> getBoneWorldMatrix(std::string_view bone) const;
+        void setBoneWorldMatrix(std::string_view bone, const osg::Matrixf& world);
+        void stopAllAnimations();
+        // Explicit ownership keeps animation callbacks from replacing Bullet's pose.
+        void beginRagdollPose();
+        void endRagdollPose(float recoveryDuration=0.f);
+        bool isRagdollPose() const { return mRagdollPose; }
+        // Current world-space hand/foot surfaces, including equipped gloves/boots.
+        // Called once after beginRagdollPose freezes their descendant transforms.
+        using RagdollExtremityVertices = std::map<std::string, std::vector<osg::Vec3f>, std::less<>>;
+        using UnsupportedRagdollExtremityBones = std::map<std::string, unsigned, std::less<>>;
+        virtual RagdollExtremityVertices getRagdollExtremityVertices(
+            UnsupportedRagdollExtremityBones* unsupportedBones = nullptr) const
+        {
+            if (unsupportedBones)
+                unsupportedBones->clear();
+            return {};
+        }
 
         void setLoopingEnabled(std::string_view groupname, bool enabled);
 
@@ -456,6 +497,7 @@ namespace MWRender
         void setPlayScriptedOnly(bool playScriptedOnly) { mPlayScriptedOnly = playScriptedOnly; }
 
         virtual bool useShieldAnimations() const { return false; }
+        virtual bool useBrutalStaffSet() const { return false; }
         virtual bool getWeaponsShown() const { return false; }
         virtual void showWeapons(bool showWeapon) {}
         virtual bool getCarriedLeftShown() const { return false; }

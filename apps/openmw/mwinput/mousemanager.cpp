@@ -38,7 +38,7 @@ namespace MWInput
         , mMouseMoveY(0)
     {
         int w, h;
-        SDL_GetWindowSize(window, &w, &h);
+        SDL_GL_GetDrawableSize(window, &w, &h);
 
         float uiScale = MWBase::Environment::get().getWindowManager()->getScalingFactor();
         mGuiCursorX = w / (2.f * uiScale);
@@ -278,8 +278,8 @@ namespace MWInput
 
     void MouseManager::warpMouse()
     {
-        float guiUiScale = Settings::gui().mScalingFactor;
-        mInputWrapper->warpMouse(
+        float guiUiScale = MWBase::Environment::get().getWindowManager()->getScalingFactor();
+        mInputWrapper->warpMouseInDrawable(
             static_cast<int>(mGuiCursorX * guiUiScale), static_cast<int>(mGuiCursorY * guiUiScale));
     }
 

@@ -8,6 +8,10 @@
 
 #include <map>
 #include <mutex>
+#include <vector>
+
+class btCollisionShape;
+class btRigidBody;
 
 namespace Resource
 {
@@ -37,12 +41,25 @@ namespace MWPhysics
         void setScale(float scale);
         void setRotation(osg::Quat quat);
         void updatePosition();
-        void commitPositionChange();
+        bool commitPositionChange();
         btTransform getTransform() const;
         /// Return solid flag. Not used by the object itself, true by default.
         bool isSolid() const;
         void setSolid(bool solid);
         bool isAnimated() const;
+        // Scheduler collision-world lock is required for the following three operations.
+        void makeDynamic(float mass);
+        void makeStatic();
+        // Release-only geometry is already expressed in this item's rigid local frame.
+        // Call before insertion under the scheduler's collision-world lock.
+        void makeReleasedDynamic(float mass, const std::vector<osg::Vec3f>& vertices,
+            const osg::Vec3f& frameLinearVelocity, const osg::Vec3f& angularVelocity);
+        void applyDynamicImpulse(const osg::Vec3f& impulse, float mass);
+        void captureDynamicTransform();
+        // Scheduler collision-world lock is required; render COM and raw body
+        // belong to the same completed-step snapshot.
+        bool takeDynamicTransforms(const btTransform& renderedCenterOfMass,
+            btTransform& authoritative, btTransform& rendered, bool& authoritativeChanged);
         /// @brief update object shape
         /// @return true if shape changed
         bool animateCollisionShapes();
@@ -62,6 +79,12 @@ namespace MWPhysics
         mutable std::mutex mPositionMutex;
         PhysicsTaskScheduler* mTaskScheduler;
         char mCollidedWith;
+        std::unique_ptr<btCollisionShape> mDynamicShape;
+        btVector3 mDynamicCenter{0, 0, 0};
+        float mDynamicInitialScale = 1.f;
+        float mDynamicMass = 0.f;
+        btTransform mDynamicTransform{btTransform::getIdentity()};
+        bool mDynamicTransformReady = false;
     };
 }
 

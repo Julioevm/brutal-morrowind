@@ -16,6 +16,7 @@
 #include <components/compiler/scanner.hpp>
 #include <components/files/conversion.hpp>
 #include <components/interpreter/interpreter.hpp>
+#include <components/misc/strings/algorithm.hpp>
 #include <components/misc/utf8stream.hpp>
 #include <components/settings/values.hpp>
 
@@ -230,7 +231,11 @@ namespace MWGui
         else
             print(mConsoleMode + " " + command + "\n");
 
-        if (!mConsoleMode.empty() || (command.size() >= 3 && std::string_view(command).substr(0, 3) == "lua"))
+        // Brutal Morrowind: "adrenaline [amount]" (fill or set the gauge) is a player Lua command.
+        const bool brutalCommand = Misc::StringUtils::ciEqual(command, "adrenaline")
+            || Misc::StringUtils::ciStartsWith(command, "adrenaline ");
+        if (!mConsoleMode.empty() || brutalCommand
+            || (command.size() >= 3 && std::string_view(command).substr(0, 3) == "lua"))
         {
             MWBase::Environment::get().getLuaManager()->handleConsoleCommand(mConsoleMode, command, mPtr);
             return;
