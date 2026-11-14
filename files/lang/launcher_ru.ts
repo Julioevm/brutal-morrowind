@@ -365,6 +365,14 @@ to default Morrowind fonts. Check this box if you still prefer original fonts ov
         <translation>Импортировано и готово: %1</translation>
     </message>
     <message>
+        <source>Could not remove the old import %1: %2</source>
+        <translation>Не удалось удалить старый импорт %1: %2</translation>
+    </message>
+    <message>
+        <source>Removed the old import %1</source>
+        <translation>Старый импорт удалён: %1</translation>
+    </message>
+    <message>
         <source>Imported for an older version of Brutal Morrowind. Import again.</source>
         <translation>Импортировано для более старой версии Brutal Morrowind. Импортируйте заново.</translation>
     </message>
@@ -723,6 +731,10 @@ to default Morrowind fonts. Check this box if you still prefer original fonts ov
     <message>
         <source>Dark Messiah data</source>
         <translation>Данные Dark Messiah</translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;The Dark Messiah import is from an older version of Brutal Morrowind.&lt;/b&gt;&lt;br&gt;&lt;br&gt;This version needs a new import. Import now? It takes about a minute. Without it the game uses Morrowind&apos;s animations and the Dark Messiah combat is off.</source>
+        <translation>&lt;b&gt;Импорт Dark Messiah сделан для более старой версии Brutal Morrowind.&lt;/b&gt;&lt;br&gt;&lt;br&gt;Для этой версии нужен новый импорт. Импортировать сейчас? Это займёт около минуты. Без него игра использует анимации Morrowind, а бой Dark Messiah выключен.</translation>
     </message>
     <message>
         <source>&lt;b&gt;The Dark Messiah animations are not imported yet.&lt;/b&gt;&lt;br&gt;&lt;br&gt;Import them now? It takes about a minute. Without them the game uses Morrowind&apos;s animations and the Dark Messiah combat is off.</source>

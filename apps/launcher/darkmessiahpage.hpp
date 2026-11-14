@@ -42,6 +42,8 @@ namespace Launcher
 
         // The game uses the imported data only when it was made for this build.
         bool dataReady() const;
+        // An import made by a previous version is present; this version needs a new one.
+        bool olderDataPresent() const;
         bool gameFolderValid() const;
         bool importRunning() const;
         bool skipMissingWarning() const { return mSkipMissingWarning; }
@@ -73,6 +75,8 @@ namespace Launcher
         void updateStatus();
         void setRunning(bool running);
         void fail(const QString& message);
+        // Delete the imports of previous versions after a successful import.
+        void removeOlderData();
 
         const Files::ConfigurationManager& mCfgMgr;
         Config::GameSettings& mGameSettings;

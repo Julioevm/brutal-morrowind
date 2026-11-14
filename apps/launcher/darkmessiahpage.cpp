@@ -250,6 +250,28 @@ bool Launcher::DarkMessiahPage::dataReady() const
     return Misc::DarkMessiahData::isReady(userDataPath());
 }
 
+bool Launcher::DarkMessiahPage::olderDataPresent() const
+{
+    for (const std::filesystem::path& folder : Misc::DarkMessiahData::olderImports(userDataPath()))
+        if (Misc::DarkMessiahData::markerRecipe(folder) > 0)
+            return true;
+    return false;
+}
+
+void Launcher::DarkMessiahPage::removeOlderData()
+{
+    for (const std::filesystem::path& folder : Misc::DarkMessiahData::olderImports(userDataPath()))
+    {
+        std::error_code error;
+        std::filesystem::remove_all(folder, error);
+        if (error)
+            mLog->appendPlainText(tr("Could not remove the old import %1: %2")
+                                      .arg(Files::pathToQString(folder), QString::fromStdString(error.message())));
+        else
+            mLog->appendPlainText(tr("Removed the old import %1").arg(Files::pathToQString(folder)));
+    }
+}
+
 bool Launcher::DarkMessiahPage::importRunning() const
 {
     return mProcess->state() != QProcess::NotRunning;
@@ -313,17 +335,9 @@ void Launcher::DarkMessiahPage::updateStatus()
     if (dataReady())
         mDataStatus->setText(tr("Imported and ready: %1").arg(Files::pathToQString(root)));
     else
-    {
-        bool older = false;
-        std::error_code error;
-        const std::filesystem::path assets = userDataPath() / "dm-assets";
-        if (std::filesystem::is_directory(assets, error))
-            for (const auto& entry : std::filesystem::directory_iterator(assets, error))
-                if (Misc::DarkMessiahData::markerRecipe(entry.path()) > 0)
-                    older = true;
-        mDataStatus->setText(older ? tr("Imported for an older version of Brutal Morrowind. Import again.")
-                                   : tr("Not imported yet. The import takes about a minute."));
-    }
+        mDataStatus->setText(olderDataPresent()
+                ? tr("Imported for an older version of Brutal Morrowind. Import again.")
+                : tr("Not imported yet. The import takes about a minute."));
     if (!importRunning())
     {
         mImportButton->setText(dataReady() ? tr("Import again") : tr("Import"));
@@ -415,7 +429,10 @@ void Launcher::DarkMessiahPage::processFinished(int exitCode, QProcess::ExitStat
     mProgress->setRange(0, 1);
     mProgress->setValue(success ? 1 : 0);
     if (success)
+    {
         mStepLabel->setText(tr("Import finished."));
+        removeOlderData();
+    }
     else if (mCancelling || exitCode == sCancelledExitCode)
         mStepLabel->setText(tr("Import cancelled."));
     else
