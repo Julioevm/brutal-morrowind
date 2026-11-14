@@ -88,11 +88,14 @@ class Importer:
         self.started = time.monotonic()
         self.processes = set()
         self.cancelled = threading.Event()
+        self.cancel_reason = None
         self.progress = False
         self.done = 0
 
-    def cancel(self):
+    def cancel(self, reason=None):
         """Stop running steps; steps not yet started refuse to start."""
+        if reason is not None and not self.cancelled.is_set():
+            self.cancel_reason = reason
         self.cancelled.set()
         with self.lock:
             for process in list(self.processes):
@@ -117,7 +120,10 @@ class Importer:
             with self.lock:
                 if self.cancelled.is_set():
                     raise Cancelled()
-                process = subprocess.Popen(command, cwd=ROOT, env=ENVIRONMENT, stdout=stream, stderr=subprocess.STDOUT)
+                # Not the launcher's input pipe: on Windows, children inheriting it end the
+                # importer's own read of it, which looked like a cancel.
+                process = subprocess.Popen(command, cwd=ROOT, env=ENVIRONMENT, stdin=subprocess.DEVNULL,
+                                           stdout=stream, stderr=subprocess.STDOUT)
                 self.processes.add(process)
             process.wait()
             with self.lock:
@@ -530,6 +536,22 @@ def sha256(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+KEPT_LOGS = 'import-logs'
+
+
+def keep_logs(importer, output):
+    """Move the step logs of a cancelled import out of the work folder that is removed."""
+    try:
+        if not any(importer.logs.iterdir()):
+            return None
+        target = output / KEPT_LOGS
+        shutil.rmtree(target, ignore_errors=True)
+        shutil.move(str(importer.logs), str(target))
+        return target
+    except OSError:
+        return None
+
+
 def main():
     parser = argparse.ArgumentParser(prog='dm-import', description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -557,6 +579,7 @@ def main():
         bsa = find_bsa(arguments.morrowind.expanduser().resolve())
         if work.exists():
             shutil.rmtree(work)
+        shutil.rmtree(output / KEPT_LOGS, ignore_errors=True)
         importer = Importer(vpks, bsa, output, work)
         importer.progress = arguments.progress
         if arguments.cancel_on_stdin_close:
@@ -571,12 +594,16 @@ def main():
                         pass
                 except (OSError, ValueError):
                     return
-                importer.cancel()
+                importer.cancel('the launcher closed the importer input')
             threading.Thread(target=watch, daemon=True).start()
         count = importer.build()
     except Cancelled:
+        reason = importer.cancel_reason or 'a step was stopped'
+        kept = keep_logs(importer, output)
         shutil.rmtree(work, ignore_errors=True)
-        print('dm-import: cancelled', file=sys.stderr)
+        print(f'dm-import: cancelled ({reason})', file=sys.stderr)
+        if kept is not None:
+            print(f'dm-import: step logs kept in {kept}', file=sys.stderr)
         return 3
     except (ImportError_, BsaError) as error:
         print(f'dm-import: {error}', file=sys.stderr)

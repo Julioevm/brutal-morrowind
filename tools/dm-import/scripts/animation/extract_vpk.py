@@ -37,19 +37,26 @@ def extract(path,entry):
 def store(path,data):
     """Write a cache file atomically, so steps running side by side never read half of it.
 
-    Windows refuses to replace a file another step has open; that step wrote the
-    same archive entry, so an identical existing file is kept.
+    Steps that need the same archive entry may extract it at the same time. On
+    Windows an existing cache file is never replaced: replacing deletes the old
+    file, and a step opening it at that moment gets "access denied". The first
+    copy wins; later identical copies are dropped.
     """
     temporary=path.with_name(f'{path.name}.{os.getpid()}.part')
     temporary.write_bytes(data)
-    for attempt in range(50):
+    for attempt in range(100):
         try:
-            os.replace(temporary,path);return
+            if os.name=='nt':
+                os.rename(temporary,path)
+            else:
+                os.replace(temporary,path)
+            return
+        except FileExistsError:
+            temporary.unlink();return
         except PermissionError:
-            if path.is_file() and path.read_bytes()==data:
-                temporary.unlink();return
+            # A virus scanner may still hold the new file; try again shortly.
             time.sleep(.1)
-    os.replace(temporary,path)
+    os.rename(temporary,path)
 
 
 def main():

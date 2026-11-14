@@ -377,6 +377,7 @@ void Launcher::DarkMessiahPage::cancelImport()
     mCancelling = true;
     mCancelButton->setEnabled(false);
     mStepLabel->setText(tr("Cancelling..."));
+    mLog->appendPlainText(tr("Cancel requested by the user."));
     // The importer stops its steps when its input closes; kill it if it does not.
     mProcess->closeWriteChannel();
     QTimer::singleShot(15000, mProcess, [process = mProcess] {

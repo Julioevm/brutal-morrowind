@@ -397,6 +397,10 @@ to default Morrowind fonts. Check this box if you still prefer original fonts ov
         <translation>Отмена...</translation>
     </message>
     <message>
+        <source>Cancel requested by the user.</source>
+        <translation>Отмена запрошена пользователем.</translation>
+    </message>
+    <message>
         <source>Import finished.</source>
         <translation>Импорт завершён.</translation>
     </message>
