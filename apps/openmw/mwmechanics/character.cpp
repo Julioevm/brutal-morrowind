@@ -19,6 +19,8 @@
 
 #include "character.hpp"
 
+#include "brutalfootsteps.hpp"
+
 #include "../mwphysics/creaturerig.hpp"
 #include "../mwmechanics/brutaloptions.hpp"
 #include "../mwphysics/playerkinetics.hpp"
@@ -1175,6 +1177,15 @@ namespace MWMechanics
                 {
                     pitch = Misc::StringUtils::toNumeric<float>(tokens[2], pitch);
                 }
+            }
+
+            if (soundgen == "left" || soundgen == "right")
+            {
+                // The player's Dark Messiah steps follow the leg cycle, not the arms' clip.
+                if (mPtr == getPlayer() && BrutalFootsteps::available())
+                    return;
+                if (BrutalFootsteps::play(mPtr, soundgen == "left", false, BrutalFootsteps::Gait::Walk))
+                    return;
             }
 
             const ESM::RefId sound = charClass.getSoundIdFromSndGen(mPtr, soundgen);
@@ -2766,6 +2777,8 @@ namespace MWMechanics
                 // Started a jump.
                 else if (mJumpState != JumpState_InAir && vec.z() > 0.f)
                 {
+                    if (isPlayer && !wasInJump)
+                        BrutalFootsteps::playJump(mPtr);
                     mInJump = true;
                     if (kineticPlayer || (vec.x() == 0 && vec.y() == 0))
                         vec.z() = jumpHeight;
@@ -2817,7 +2830,9 @@ namespace MWMechanics
                         }
                     }
 
-                    if (mPtr.getClass().isNpc())
+                    if (mPtr.getClass().isNpc()
+                        && !BrutalFootsteps::play(
+                            mPtr, true, true, static_cast<BrutalFootsteps::Gait>(isPlayer ? mBrutalStepGait : 0)))
                     {
                         std::string_view sound;
                         osg::Vec3f pos(mPtr.getRefData().getPosition().asVec3());
@@ -2914,6 +2929,9 @@ namespace MWMechanics
                 clearAnimQueue();
                 jumpstate = JumpState_None;
             }
+
+            if (isPlayer)
+                updateBrutalPlayerSteps(duration, movestate, !mInJump && onground && !inwater && !flying);
 
             updateAnimQueue();
             if (!mAnimQueue.empty())
@@ -4260,6 +4278,66 @@ namespace MWMechanics
             = falling && drop >= 50.f * inch && Misc::Rng::rollClosedProbability(world->getPrng()) < .6f;
         world->applyNpcKick(victim, direction * push + osg::Vec3f(0, 0, knockDown ? push * .35f : 0.f), mPtr,
             knockDown);
+    }
+
+    void CharacterController::updateBrutalPlayerSteps(float duration, CharacterState movestate, bool grounded)
+    {
+        // Dark Messiah's player legs (player_animations.mdl) play Walk, run, sprint and Crouch
+        // at their own rate, whatever the arms do, with footstep events 2124 (right) and 2123
+        // (left) at fixed points of each cycle.
+        using Gait = BrutalFootsteps::Gait;
+        Gait gait;
+        float cycle = 1.f;
+        switch (movestate)
+        {
+            case CharState_WalkForward:
+            case CharState_WalkBack:
+            case CharState_WalkLeft:
+            case CharState_WalkRight:
+                gait = Gait::Walk;
+                break;
+            case CharState_RunForward:
+                gait = mBrutalSprinting ? Gait::Sprint : Gait::Run;
+                cycle = 20.f / 24.f; // a_RunN and a_sprintN are 21 frames at 24 fps
+                break;
+            case CharState_RunBack:
+            case CharState_RunLeft:
+            case CharState_RunRight:
+                gait = Gait::Run;
+                break;
+            case CharState_SneakForward:
+            case CharState_SneakBack:
+            case CharState_SneakLeft:
+            case CharState_SneakRight:
+                gait = Gait::Stealth;
+                break;
+            default:
+                mBrutalStepPhase = 0.f;
+                return;
+        }
+        if (!grounded || duration <= 0.f)
+        {
+            mBrutalStepPhase = 0.f;
+            return;
+        }
+        mBrutalStepGait = static_cast<int>(gait);
+        const float right = gait == Gait::Walk ? .292f : .333f;
+        const float left = gait == Gait::Walk ? .792f : .75f;
+        float from = mBrutalStepPhase;
+        float to = from + duration / cycle;
+        while (true)
+        {
+            const float end = std::min(to, 1.f);
+            if (from < right && right <= end)
+                BrutalFootsteps::play(mPtr, false, false, gait);
+            if (from < left && left <= end)
+                BrutalFootsteps::play(mPtr, true, false, gait);
+            if (to < 1.f)
+                break;
+            from = 0.f;
+            to -= 1.f;
+        }
+        mBrutalStepPhase = to;
     }
 
     void CharacterController::updateBrutalShieldBlock()

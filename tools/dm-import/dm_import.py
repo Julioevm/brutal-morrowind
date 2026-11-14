@@ -31,7 +31,7 @@ EFFECTS = ROOT / 'scripts/effects'
 CALIBRATION = HERE / 'calibration'
 RECIPE_VERSION = 2  # Misc::DarkMessiahData::sRecipe in the engine must match.
 # Conversion steps per import, for progress reporting.
-TOTAL_STEPS = 34
+TOTAL_STEPS = 36
 KEYFRAMES = ('.kf', '.yaml')
 # Steps run side by side, one core each; the matrices involved are 4x4.
 ENVIRONMENT = dict(os.environ, OMP_NUM_THREADS='1', OPENBLAS_NUM_THREADS='1', MKL_NUM_THREADS='1')
@@ -178,7 +178,8 @@ class Importer:
         out = self.stage('effects')
         for label, script in (('Sounds and particle textures', 'import_dark_messiah_effects.py'),
                               ('Blood decals', 'import_dark_messiah_decals.py'),
-                              ('Cut surfaces', 'import_dark_messiah_caps.py')):
+                              ('Cut surfaces', 'import_dark_messiah_caps.py'),
+                              ('Footstep sounds', 'import_dark_messiah_footsteps.py')):
             self.run(label, EFFECTS / script, '--vpk-root', self.vpks, '--output', out)
 
     def body(self):
@@ -523,6 +524,7 @@ class Importer:
                 frames = pool.submit(lambda: (npc.result(), slide.result(), self.slide_and_clinch_frames()))
                 arms = self.finish(dagger, staff, sword, chain)
                 frames.result(); effects.result(); creatures.result(); kick.result()
+                self.run('Footstep keys', ANIMATION / 'add_footstep_keys.py', self.stage('npc'))
             except BaseException:
                 # One failed or cancelled step stops the others instead of waiting for them.
                 self.cancel()
