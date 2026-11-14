@@ -90,7 +90,9 @@ class GuardImporter(Importer):
         self.hand_map={'R':frame(attachment@[0,-1,0],attachment@[0,0,-1])@frame(native@[0,1,0],native@[1,0,0]).T}
         locals_={b.name:np.asarray(b.position) for b in attachment_bones}
         self.hand_map['L']=frame(locals_['SK_L_Finger_B1'],locals_['SK_L_Thumb_1'])@frame(self.nodes['Bip01 L Finger2'].translation,self.nodes['Bip01 L Finger0'].translation).T
-        self.shield_map=frame(self.shield_idle[:3,:3]@[0,0,1],self.shield_idle[:3,:3]@[0,-1,0])@frame(np.array([0,-1.,0]),np.array([0,0,1.])).T
+        # Morrowind shield meshes: face normal +Z, top edge +Y. The source
+        # shield's face normal is its item -Y and its top edge is item +Z.
+        self.shield_map=frame(self.shield_idle[:3,:3]@[0,-1,0],self.shield_idle[:3,:3]@[0,0,1])@frame(np.array([0,0,1.]),np.array([0,1.,0])).T
         self.arm_scale={};self.dm_hinge={};self.hinge={};self.roll_state={};self.segment_records=[];self.group_records={}
         idle=self.source_world(self.clip('guard','@combatidle'),0)
         for side,names in SIDES.items():
