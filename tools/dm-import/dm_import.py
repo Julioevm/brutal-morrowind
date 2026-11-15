@@ -4,7 +4,7 @@
     dm-import --dark-messiah <dir> --morrowind <dir> --output <dir>
 
 Reads Dark Messiah VPK/GCF archives or extracted resources and the original Morrowind.bsa, runs every
-conversion step in order and writes six data directories below --output:
+conversion step in order and writes eight data directories below --output:
 
     body-data  clinch-data  effects-data  firstperson-data  npc-data  slide-data
 
@@ -29,7 +29,7 @@ ANIMATION = ROOT / 'scripts/animation'
 CREATURES = ROOT / 'scripts/creatures'
 EFFECTS = ROOT / 'scripts/effects'
 CALIBRATION = HERE / 'calibration'
-RECIPE_VERSION = 3  # Misc::DarkMessiahData::sRecipe in the engine must match.
+RECIPE_VERSION = 4  # Misc::DarkMessiahData::sRecipe in the engine must match.
 # Conversion steps per import, for progress reporting.
 TOTAL_STEPS = 36
 KEYFRAMES = ('.kf', '.yaml')
@@ -555,7 +555,7 @@ def main():
                         help='Dark Messiah folder with VPK/GCF archives, or an extracted mm folder')
     parser.add_argument('--morrowind', type=Path, required=True,
                         help='Morrowind folder or its Data Files folder (the one holding Morrowind.bsa)')
-    parser.add_argument('--output', type=Path, required=True, help='Folder that receives the six data directories')
+    parser.add_argument('--output', type=Path, required=True, help='Folder that receives the eight data directories')
     parser.add_argument('--work', type=Path, help='Scratch folder (default: <output>/.dm-import-work)')
     parser.add_argument('--timings', action='store_true', help='Print when each step started and ended')
     parser.add_argument('--keep-work', action='store_true', help='Keep intermediate stages and logs after success')
