@@ -4433,6 +4433,8 @@ namespace MWMechanics
 
         const bool matchGuardPhase
             = !mAnimation->activeSourceHasTextKey("brutal_block: start", "brutal_block: dagger arm frame");
+        const bool shieldOverlay
+            = mAnimation->activeSourceHasTextKey("brutal_block: start", "brutal_block: shield overlay");
         const auto computeGuardStartPoint = [&](bool toRaise) {
             if (!matchGuardPhase)
                 return 0.f;
@@ -4443,6 +4445,11 @@ namespace MWMechanics
                 return 0.f;
             if (toRaise)
             {
+                if (shieldOverlay)
+                {
+                    const float stop = mAnimation->getTextKeyTime(group + ": stop");
+                    return stop > start ? (loopStart - start) / (stop - start) : 0.f;
+                }
                 const float lowerStart = mAnimation->getTextKeyTime(group + ": lower start");
                 const float stop = mAnimation->getTextKeyTime(group + ": stop");
                 if (lowerStart < 0.f || stop <= lowerStart || cur < lowerStart)
@@ -4471,7 +4478,8 @@ namespace MWMechanics
         {
             if (able)
             {
-                const float startPoint = mBrutalBlock == BrutalBlock::Raising ? computeGuardStartPoint(false) : 0.f;
+                const float startPoint = !shieldOverlay && mBrutalBlock == BrutalBlock::Raising
+                    ? computeGuardStartPoint(false) : 0.f;
                 MWRender::Animation::ScopedDeferActiveGroupReset deferReset(*mAnimation);
                 mAnimation->disable(group);
                 playBlendedAnimation(group, Priority_Block, MWRender::BlendMask_UpperBody, true, 1.f, "lower start",
@@ -4515,7 +4523,9 @@ namespace MWMechanics
         {
             const std::string impact = chooseRandomGroup("brutal_blockhit");
             {
-                mAnimation->disable(impact);
+                MWRender::Animation::ScopedDeferActiveGroupReset deferReset(*mAnimation);
+                for (int i = 1; i <= 3; ++i)
+                    mAnimation->disable("brutal_blockhit" + std::to_string(i));
                 playBlendedAnimation(impact, Priority_Knockdown, MWRender::BlendMask_UpperBody, true, 1.f, "start",
                     "stop", 0.f, 0);
             }
