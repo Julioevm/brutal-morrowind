@@ -35,6 +35,8 @@ staminaEnabled: Dark Messiah stamina
 staminaEnabledDescription: "Dark Messiah stamina costs and recovery."
 kickEnabled: Kick
 kickEnabledDescription: "Kick using the assigned button."
+kickAlwaysRagdoll: Kick always triggers ragdoll
+kickAlwaysRagdollDescription: "Ordinary non-adrenaline kicks always knock NPCs and supported creatures into ragdoll with normal kick damage, stamina cost, and pushback."
 slideEnabled: Slide
 slideEnabledDescription: "Crouch while sprinting or running to slide."
 activeBlockEnabled: Manual blocking

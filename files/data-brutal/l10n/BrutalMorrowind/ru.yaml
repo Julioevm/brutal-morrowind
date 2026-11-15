@@ -35,6 +35,8 @@ staminaEnabled: Выносливость Dark Messiah
 staminaEnabledDescription: "Восстановление и затраты сил по правилам Dark Messiah."
 kickEnabled: Пинок
 kickEnabledDescription: "Пинок назначенной кнопкой."
+kickAlwaysRagdoll: Пинок всегда вызывает ragdoll
+kickAlwaysRagdollDescription: "Обычный не адреналиновый пинок всегда сбивает NPC и поддерживаемых существ в ragdoll с обычным уроном, расходом запаса сил и силой отбрасывания."
 slideEnabled: Подкат
 slideEnabledDescription: "Присядьте во время спринта или бега, чтобы сделать подкат."
 activeBlockEnabled: Ручной блок
