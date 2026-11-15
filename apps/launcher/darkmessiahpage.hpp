@@ -92,6 +92,8 @@ namespace Launcher
         QPlainTextEdit* mLog;
         QProcess* mProcess;
         QString mPendingLine;
+        // Counts started imports, so a kill timer of a cancelled import spares the next one.
+        unsigned mImportRun = 0;
         bool mPlayAfter = false;
         bool mCancelling = false;
         bool mSkipMissingWarning = false;

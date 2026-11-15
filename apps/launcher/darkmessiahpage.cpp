@@ -372,6 +372,7 @@ void Launcher::DarkMessiahPage::startImport(bool playAfter)
     saveSettings();
     mPlayAfter = playAfter;
     mCancelling = false;
+    ++mImportRun;
     mPendingLine.clear();
     mLog->clear();
     mLog->setVisible(true);
@@ -395,9 +396,9 @@ void Launcher::DarkMessiahPage::cancelImport()
     mLog->appendPlainText(tr("Cancel requested by the user."));
     // The importer stops its steps when its input closes; kill it if it does not.
     mProcess->closeWriteChannel();
-    QTimer::singleShot(15000, mProcess, [process = mProcess] {
-        if (process->state() != QProcess::NotRunning)
-            process->kill();
+    QTimer::singleShot(15000, this, [this, run = mImportRun] {
+        if (run == mImportRun && importRunning())
+            mProcess->kill();
     });
 }
 
