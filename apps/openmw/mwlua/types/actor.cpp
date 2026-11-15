@@ -497,6 +497,7 @@ namespace MWLua
             if (!brutalOptions.contains(name)) throw std::runtime_error("Unknown Brutal option: " + name);
             if (name == "enabled") return brutalOptions.at(name);
             if (!brutalOptions.at("enabled")) return name == "classicFirstPerson" || name == "classicNpcAnimations";
+            if (name == "kickAlwaysRagdoll") return brutalOptions.at("ragdoll") && brutalOptions.at(name);
             return brutalOptions.at(name);
         };
         actor["setBrutalOption"] = [context, initialiseOptions](const SelfObject& self, std::string name, bool value) {
