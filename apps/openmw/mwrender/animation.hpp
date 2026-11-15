@@ -183,6 +183,10 @@ namespace MWRender
         };
 
         typedef std::map<std::string, AnimState, std::less<>> AnimStateMap;
+
+        /// Loop markers of a state's group in its own source, within the state's start..stop range.
+        /// Falls back to start..stop when the group has no loop markers.
+        std::pair<float, float> getLoopRange(const AnimState& state) const;
         AnimStateMap mStates;
 
         typedef std::vector<std::shared_ptr<AnimSource>> AnimSourceList;
