@@ -29,7 +29,7 @@ import sys
 import numpy as np
 
 from retarget_kf import cross, norm, prime_quaternions
-from extract_vpk import entries, extract, store
+from dm_sources import archives, entries, extract, store
 from inspect_mdl import load_mdl
 from retarget_kf import quat_matrix, matrix_quat
 from retarget_contract import CONTRACT, sides as correspondence_sides, validate as validate_correspondence, measure_grip_solver, validate_attachment
@@ -277,7 +277,7 @@ class Viewmodel:
         if not dst.exists():
             dst.parent.mkdir(parents=True, exist_ok=True)
             wanted = 'mm/models/'+('' if '/' in model else 'npc/player/')+model+extension
-            for archive in sorted(self.vpk.glob('*_dir.vpk')):
+            for archive in reversed(archives(self.vpk)):
                 found = next((e for n, e in entries(archive) if n.lower() == wanted), None)
                 if found is not None: store(dst, extract(archive, found)); break
             else: raise FileNotFoundError(wanted)

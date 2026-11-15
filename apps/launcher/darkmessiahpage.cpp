@@ -99,7 +99,7 @@ Launcher::DarkMessiahPage::DarkMessiahPage(
     gameLayout->addWidget(intro);
     auto* pathRow = new QHBoxLayout();
     mPathEdit = new QLineEdit(gameBox);
-    mPathEdit->setPlaceholderText(tr("Dark Messiah folder (the one that holds vpks)"));
+    mPathEdit->setPlaceholderText(tr("Dark Messiah folder (VPK, GCF or extracted mm resources)"));
     mBrowseButton = new QPushButton(tr("Browse..."), gameBox);
     mDetectButton = new QPushButton(tr("Detect"), gameBox);
     pathRow->addWidget(mPathEdit, 1);
@@ -204,8 +204,9 @@ bool Launcher::DarkMessiahPage::isGameFolder(const QString& folder)
 {
     if (folder.isEmpty())
         return false;
-    for (const QString& candidate : { folder, folder + "/vpks" })
-        if (!QDir(candidate).entryList({ QStringLiteral("*_dir.vpk") }, QDir::Files).isEmpty())
+    for (const QString& candidate : { folder, folder + "/vpks", folder + "/mm", folder + "/mm/vpks" })
+        if (!QDir(candidate).entryList({ QStringLiteral("*_dir.vpk"), QStringLiteral("*.gcf") }, QDir::Files).isEmpty()
+            || QFileInfo::exists(candidate + "/models/npc/player/first_basic.mdl"))
             return true;
     return false;
 }
@@ -329,7 +330,7 @@ void Launcher::DarkMessiahPage::updateStatus()
     else if (isGameFolder(folder))
         mFolderStatus->setText(tr("Game files found."));
     else
-        mFolderStatus->setText(tr("This folder has no Dark Messiah archives (vpks/*_dir.vpk)."));
+        mFolderStatus->setText(tr("This folder has no Dark Messiah resources (VPK, GCF or extracted mm folder)."));
 
     const std::filesystem::path root = Misc::DarkMessiahData::root(userDataPath());
     if (dataReady())

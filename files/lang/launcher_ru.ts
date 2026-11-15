@@ -309,8 +309,8 @@ to default Morrowind fonts. Check this box if you still prefer original fonts ov
         <translation>Brutal Morrowind берёт боевые анимации, звуки и эффекты крови из вашей копии Dark Messiah of Might and Magic. Из папки игры ничего не копируется как есть: импортёр один раз собирает их в вашей папке пользовательских данных.</translation>
     </message>
     <message>
-        <source>Dark Messiah folder (the one that holds vpks)</source>
-        <translation>Папка Dark Messiah (в которой лежит vpks)</translation>
+        <source>Dark Messiah folder (VPK, GCF or extracted mm resources)</source>
+        <translation>Папка Dark Messiah (архивы VPK, GCF или распакованные ресурсы mm)</translation>
     </message>
     <message>
         <source>Browse...</source>
@@ -357,8 +357,8 @@ to default Morrowind fonts. Check this box if you still prefer original fonts ov
         <translation>Файлы игры найдены.</translation>
     </message>
     <message>
-        <source>This folder has no Dark Messiah archives (vpks/*_dir.vpk).</source>
-        <translation>В этой папке нет архивов Dark Messiah (vpks/*_dir.vpk).</translation>
+        <source>This folder has no Dark Messiah resources (VPK, GCF or extracted mm folder).</source>
+        <translation>В этой папке нет ресурсов Dark Messiah (VPK, GCF или распакованной папки mm).</translation>
     </message>
     <message>
         <source>Imported and ready: %1</source>

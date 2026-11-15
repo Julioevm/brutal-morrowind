@@ -22,7 +22,7 @@ import wave
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts/animation'))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from extract_vpk import entries, extract  # noqa: E402
+from dm_sources import archives, entries, extract  # noqa: E402
 from import_dark_messiah_effects import leaves  # noqa: E402
 
 SURFACES = ('concrete', 'wood', 'sand', 'metal', 'dirt', 'grass', 'carpet', 'water', 'wade', 'mud', 'chitin',
@@ -81,11 +81,11 @@ def main():
     if not re.fullmatch('[a-z]+', args.language):
         raise ValueError('Invalid language')
     index = {}
-    for archive in sorted(args.vpk_root.glob('*_dir.vpk')):
+    for archive in archives(args.vpk_root):
         for name, entry in entries(archive):
             index[name.lower()] = (archive, name, entry)
     if not index:
-        raise ValueError('No VPK entries found')
+        raise ValueError('No Dark Messiah resources found')
 
     def read(name):
         archive, _, entry = index[name.lower()]
