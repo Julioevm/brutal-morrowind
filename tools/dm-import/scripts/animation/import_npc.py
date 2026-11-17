@@ -12,7 +12,7 @@ import numpy as np
 
 from retarget_kf import cross, norm
 
-from extract_vpk import entries, extract, store
+from dm_sources import archives, entries, extract, store
 from import_first_person import Importer, ROOT, FPS
 from inspect_mdl import load_mdl
 from retarget_kf import quat_matrix, matrix_quat
@@ -49,7 +49,7 @@ class GuardImporter(Importer):
         path = work/'npc_guard_combat_animations.mdl'
         if not path.exists():
             wanted = 'mm/models/npc/guard/npc_guard_combat_animations.mdl'
-            for archive in sorted(vpk.glob('*_dir.vpk')):
+            for archive in reversed(archives(vpk)):
                 entry = next((e for n,e in entries(archive) if n.lower()==wanted), None)
                 if entry is not None:
                     store(path,extract(archive,entry)); break
@@ -109,7 +109,7 @@ class GuardImporter(Importer):
     def resource(self,name):
         path=self.work/Path(name).name
         if not path.exists():
-            for archive in sorted(self.vpk.glob('*_dir.vpk')):
+            for archive in reversed(archives(self.vpk)):
                 found=next((e for n,e in entries(archive) if n.lower()==name.lower()),None)
                 if found is not None:store(path,extract(archive,found));break
             else:raise FileNotFoundError(name)

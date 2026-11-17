@@ -149,6 +149,12 @@ int main(int argc, char** argv)
     CloseHandle(process.hProcess);
     return static_cast<int>(exitCode);
 #else
+    if (bundled)
+    {
+        unsetenv("LD_LIBRARY_PATH");
+        unsetenv("QT_PLUGIN_PATH");
+        unsetenv("QT_QPA_PLATFORM_PLUGIN_PATH");
+    }
     unsetenv("PYTHONPATH");
     unsetenv("PYTHONHOME");
     setenv("PYTHONNOUSERSITE", "1", 1);

@@ -4466,26 +4466,66 @@ namespace MWMechanics
             stats.mBrutalSlashRight = false;
         }
 
+        const bool matchGuardPhase
+            = !mAnimation->activeSourceHasTextKey("brutal_block: start", "brutal_block: dagger arm frame");
+        const bool shieldOverlay
+            = mAnimation->activeSourceHasTextKey("brutal_block: start", "brutal_block: shield overlay");
+        const auto computeGuardStartPoint = [&](bool toRaise) {
+            if (!matchGuardPhase)
+                return 0.f;
+            const float start = mAnimation->getTextKeyTime(group + ": start");
+            const float loopStart = mAnimation->getTextKeyTime(group + ": loop start");
+            const float cur = mAnimation->getCurrentTime(group);
+            if (start < 0.f || loopStart <= start)
+                return 0.f;
+            if (toRaise)
+            {
+                if (shieldOverlay)
+                {
+                    const float stop = mAnimation->getTextKeyTime(group + ": stop");
+                    return stop > start ? (loopStart - start) / (stop - start) : 0.f;
+                }
+                const float lowerStart = mAnimation->getTextKeyTime(group + ": lower start");
+                const float stop = mAnimation->getTextKeyTime(group + ": stop");
+                if (lowerStart < 0.f || stop <= lowerStart || cur < lowerStart)
+                    return 0.f;
+                const float lowerFrac = std::clamp((cur - lowerStart) / (stop - lowerStart), 0.f, 1.f);
+                const float targetTime = start + (1.f - lowerFrac) * (loopStart - start);
+                return std::clamp((targetTime - start) / (stop - start), 0.f, 1.f);
+            }
+            if (cur < start)
+                return 0.f;
+            const float raiseFrac = std::clamp((cur - start) / (loopStart - start), 0.f, 1.f);
+            return 1.f - raiseFrac;
+        };
         if (wanted && (mBrutalBlock == BrutalBlock::None || mBrutalBlock == BrutalBlock::Lowering)
             && mUpperBodyState == UpperBodyState::WeaponEquipped)
         {
             mBrutalGuardCharge = false;
+            const float startPoint = mBrutalBlock == BrutalBlock::Lowering ? computeGuardStartPoint(true) : 0.f;
+            MWRender::Animation::ScopedDeferActiveGroupReset deferReset(*mAnimation);
             mAnimation->disable(group);
             playBlendedAnimation(group, Priority_Block, MWRender::BlendMask_UpperBody, false, 1.f, "start", "stop",
-                0.f, std::numeric_limits<uint32_t>::max());
+                startPoint, std::numeric_limits<uint32_t>::max());
             mBrutalBlock = BrutalBlock::Raising;
         }
         else if (!wanted && (mBrutalBlock == BrutalBlock::Raising || mBrutalBlock == BrutalBlock::Holding))
         {
-            mAnimation->disable(group);
             if (able)
             {
+                const float startPoint = !shieldOverlay && mBrutalBlock == BrutalBlock::Raising
+                    ? computeGuardStartPoint(false) : 0.f;
+                MWRender::Animation::ScopedDeferActiveGroupReset deferReset(*mAnimation);
+                mAnimation->disable(group);
                 playBlendedAnimation(group, Priority_Block, MWRender::BlendMask_UpperBody, true, 1.f, "lower start",
-                    "stop", 0.f, 0);
+                    "stop", startPoint, 0);
                 mBrutalBlock = BrutalBlock::Lowering;
             }
             else
+            {
+                mAnimation->disable(group);
                 mBrutalBlock = BrutalBlock::None;
+            }
         }
 
         if (mBrutalBlock == BrutalBlock::Raising
@@ -4518,7 +4558,9 @@ namespace MWMechanics
         {
             const std::string impact = chooseRandomGroup("brutal_blockhit");
             {
-                mAnimation->disable(impact);
+                MWRender::Animation::ScopedDeferActiveGroupReset deferReset(*mAnimation);
+                for (int i = 1; i <= 3; ++i)
+                    mAnimation->disable("brutal_blockhit" + std::to_string(i));
                 playBlendedAnimation(impact, Priority_Knockdown, MWRender::BlendMask_UpperBody, true, 1.f, "start",
                     "stop", 0.f, 0);
             }

@@ -2,6 +2,7 @@
 #include <components/fallback/fallback.hpp>
 #include <components/fallback/validate.hpp>
 #include <components/files/configurationmanager.hpp>
+#include <components/files/conversion.hpp>
 #include <components/misc/osgpluginchecker.hpp>
 #include <components/misc/darkmessiahdata.hpp>
 #include <components/misc/rng.hpp>
@@ -24,6 +25,7 @@ extern "C" __declspec(dllexport) DWORD AmdPowerXpressRequestHighPerformance = 0x
 #endif
 
 #include <filesystem>
+#include <osgDB/Registry>
 
 #if (defined(__APPLE__) || defined(__linux) || defined(__unix) || defined(__posix))
 #include <unistd.h>
@@ -240,6 +242,14 @@ int runApplication(int argc, char* argv[])
 
     if (parseOptions(argc, argv, *engine, cfgMgr))
     {
+#if defined(__linux__) && !defined(ANDROID)
+        const auto bundledLibraries = cfgMgr.getLocalPath() / "lib";
+        if (std::filesystem::is_directory(bundledLibraries))
+        {
+            auto& paths = osgDB::Registry::instance()->getLibraryFilePathList();
+            paths.insert(paths.begin(), Files::pathToUnicodeString(bundledLibraries));
+        }
+#endif
         if (!Misc::checkRequiredOSGPluginsArePresent())
             return 1;
 

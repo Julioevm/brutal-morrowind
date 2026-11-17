@@ -5,7 +5,7 @@
 FROM docker.io/library/debian:13
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
- build-essential ccache cmake ninja-build git ca-certificates curl file unzip xz-utils pkg-config python3 nasm \
+ build-essential ccache cmake ninja-build git ca-certificates curl file unzip xz-utils pkg-config python3 nasm patchelf \
  libboost-program-options-dev libboost-system-dev libboost-iostreams-dev libboost-filesystem-dev \
  liblz4-dev libfreetype-dev libpng-dev libjpeg-dev libluajit-5.1-dev libsqlite3-dev libicu-dev \
  libyaml-cpp-dev libcollada-dom-dev zlib1g-dev libunshield-dev libgl-dev libegl-dev libgles-dev \
