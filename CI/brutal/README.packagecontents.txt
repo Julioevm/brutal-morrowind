@@ -17,7 +17,8 @@ together. Set DEBUG=1 when running a shell script to start it under gdb.
 For a Steam Deck shortcut, select "brutalmorrowind-launcher" from the unpacked
 folder. Steam Linux Runtime 4.0 is the recommended Steam compatibility tool for
 this native Linux build. The scout, soldier and sniper container runtimes have
-older glibc versions and cannot run it. Proton is for the Windows package.
+older glibc versions and are not supported by this build. Proton is for the
+Windows package.
 
 The package folder is never written to. Settings, saves and the imported Dark
 Messiah data go to ~/.config/brutalmorrowind and ~/.local/share/brutalmorrowind.

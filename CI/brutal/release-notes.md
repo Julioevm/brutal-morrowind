@@ -3,39 +3,37 @@ You need your own copies of Morrowind and Dark Messiah of Might and Magic.
 
 This is an alpha release: the combat works, the game balance is not tuned yet.
 
-## Added in 0.2.0
+## Fixed in 0.2.1
 
-* The Dark Messiah importer supports GCF installations and already extracted `mm/` folders.
-  All import steps accept VPK archives with any name ending in `_dir.vpk`; Steam depot names are
-  no longer required. You can select the installation folder directly in the launcher.
-* Dark Messiah footsteps, jump and landing sounds for the player and NPCs. Footsteps follow the
-  animation and use the surface underfoot; NPC footsteps also take their footwear into account.
-* **Kick always triggers ragdoll** in **Scripts → Brutal Morrowind**. Ordinary kicks knock NPCs
-  and supported creatures into ragdoll without spending adrenaline. Normal kick damage, stamina
-  cost and pushback are kept. This option is off by default and requires Kick and Ragdoll.
+* **Linux startup:** the launcher, game and helper programs find their bundled libraries when
+  the `.x86_64` files are started directly, including from another working directory. This fixes
+  the missing Boost library error reported in #4; installing a different system Boost is unnecessary.
+* **Qt plugins:** the launcher and installation wizard find their own X11 and Wayland plugins.
+  Missing plugin dependencies are included, and unused embedded-display and compositor plugins
+  have been removed.
+* **Game plugins:** OpenSceneGraph plugins are found relative to the game executable, so starting
+  the game from a shortcut or another folder works.
+* **Importer runtime:** completed the Linux Python library dependencies and kept the bundled
+  Python isolated from the game's libraries. GCF and VPK imports were verified through the launcher.
 
-## Fixed in 0.2.0
+Linux packages now pass automated startup checks on clean **Fedora 45** and **Ubuntu 24.04**
+environments, including X11 and Wayland windows, the importer runtime and game initialization.
 
-* Shield blocking: smoother raising and lowering, corrected hit-reaction timing and return to
-  guard, and the same weapon-contact sounds heard when blocking in Dark Messiah. Rapid repeated
-  hits no longer leave competing reactions playing at once.
-* Blocked unarmed creature attacks produce shield sparks when the shield material and effects
-  settings allow them.
-* NPC shields stay upright. NPCs interrupted while drawing a weapon keep it visible in hand.
-* First-person legs play their full movement cycle at the right speed when no weapon is drawn.
-* The launcher detects an outdated Dark Messiah import and offers to rebuild it. A successful
-  update removes the old import while keeping folders from newer versions.
-* Restarting an import immediately after cancelling it works without the cancelled run's
-  delayed stop timer interrupting the new import.
+## Updating
 
-After updating from 0.1.1, the launcher will ask you to import Dark Messiah again for the new
-sounds and corrected animations. Choose **Import and play** when prompted.
+Existing imports and settings from **0.2.0** are reused. You do not need to import Dark Messiah again.
+Replace the unpacked Linux package or run the updated Windows installer.
 
 ## Downloads
 
-* **Linux** (Debian 13, Ubuntu 24.04 or newer, x86-64): `BrutalMorrowind-0.2.0-Linux-64Bit.tar.gz`.
-  Unpack it anywhere and run `brutalmorrowind-launcher`.
-* **Windows** (Windows 10 or newer, 64-bit): `BrutalMorrowind-0.2.0-Windows-x64.exe`. Run the installer.
+* **Linux** (Debian 13, Ubuntu 24.04 with updates, Fedora 45 or newer, x86-64):
+  `BrutalMorrowind-0.2.1-Linux-64Bit.tar.gz`. Unpack it anywhere and run `brutalmorrowind-launcher`.
+  Requires glibc 2.38+, a GCC 14-compatible C++ runtime and desktop OpenGL libraries.
+* **Windows** (Windows 10 or newer, 64-bit): `BrutalMorrowind-0.2.1-Windows-x64.exe`. Run the installer.
+
+For Steam and Steam Deck, **Steam Linux Runtime 4.0** is the recommended compatibility tool
+for the native Linux package. The older scout, soldier and sniper containers are not supported.
+Proton is for the Windows package.
 
 On the first run the launcher imports Dark Messiah's animations, sounds and textures from your copy
 of the game; this takes about half a minute.
