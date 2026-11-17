@@ -9,7 +9,7 @@
 #include <osg/BlendFunc>
 #include <osg/Depth>
 #include <components/sceneutil/depth.hpp>
-#include <osg/Material>
+#include <components/sceneutil/material.hpp>
 #include <components/resource/imagemanager.hpp>
 #include <components/sceneutil/texturetype.hpp>
 #include <components/settings/values.hpp>
@@ -35,15 +35,15 @@ namespace MWRender
 {
     namespace
     {
-        osg::ref_ptr<osg::Material> createAlphaTrackingUnlitMaterial()
+        osg::ref_ptr<SceneUtil::Material> createAlphaTrackingUnlitMaterial()
         {
-            osg::ref_ptr<osg::Material> material = new osg::Material;
-            material->setDiffuse(osg::Material::FRONT_AND_BACK, osg::Vec4f(0.f, 0.f, 0.f, 1.f));
-            material->setAmbient(osg::Material::FRONT_AND_BACK, osg::Vec4f(0.f, 0.f, 0.f, 1.f));
-            material->setEmission(osg::Material::FRONT_AND_BACK, osg::Vec4f(1.f, 1.f, 1.f, 1.f));
-            material->setSpecular(osg::Material::FRONT_AND_BACK, osg::Vec4f(0.f, 0.f, 0.f, 0.f));
-            material->setColorMode(osg::Material::DIFFUSE);
-            return material;
+            return new SceneUtil::Material({
+                .mDiffuse = { 0.f, 0.f, 0.f, 1.f },
+                .mAmbient = { 0.f, 0.f, 0.f, 1.f },
+                .mSpecular = { 0.f, 0.f, 0.f, 0.f },
+                .mEmission = { 1.f, 1.f, 1.f, 1.f },
+                .mVertexColorMode = SceneUtil::VertexColorModes::Diffuse,
+            });
         }
     }
 
