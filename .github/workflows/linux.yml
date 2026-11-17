@@ -50,6 +50,16 @@ jobs:
         path: ${{ env.CCACHE_DIR }}
         key: ccache-linux-${{ github.sha }}
 
+    - name: Test the package on clean desktop runtimes
+      run: |
+        package="$(find "$PWD/build-linux" -maxdepth 1 -type d -name 'BrutalMorrowind-*-Linux-64Bit' -print -quit)"
+        test -n "$package"
+        for runtime in ubuntu:24.04 fedora:45; do
+          docker build --file CI/brutal/linux-runtime.Containerfile \
+            --build-arg "BASE_IMAGE=docker.io/library/$runtime" --tag brutal-runtime CI/brutal
+          docker run --rm --volume "$package:/package with spaces:ro" brutal-runtime
+        done
+
     - name: Store the package
       uses: actions/upload-artifact@v6
       with:

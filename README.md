@@ -11,7 +11,8 @@ No game files are included. Brutal Morrowind uses the games you own.
 * Morrowind.
 * Dark Messiah of Might and Magic, for its animations, sounds and effects. Without it the game runs
   with Morrowind's animations and the features that need Dark Messiah's are turned off.
-* Linux: Debian 13, Ubuntu 24.04 or a newer distribution, x86-64.
+* Linux: Debian 13, Ubuntu 24.04 with updates, Fedora 45 or a newer distribution,
+  x86-64 (glibc 2.38+, GCC 14-compatible C++ runtime and desktop OpenGL libraries).
 * Windows: Windows 10 or newer, 64-bit.
 
 ## Installation
@@ -22,6 +23,11 @@ Download the package for your system from the Releases page.
   `brutalmorrowind-launcher` in the unpacked folder.
 * Windows: run `BrutalMorrowind-<version>-Windows-x64.exe` and start Brutal Morrowind from the
   Start menu.
+
+On Steam Deck, add the launcher as a non-Steam game and select Steam Linux
+Runtime 4.0 as its compatibility tool. The Linux package requires a newer glibc
+than the scout, soldier and sniper containers provide. Keep the whole unpacked
+folder together; Qt and Boost are bundled.
 
 ## First run
 
